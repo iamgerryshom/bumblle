@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 
 import answerIcon from "../assets/icons/accept-vector.svg";
 import rejectIcon from "../assets/icons/reject-vector.svg";
-import MinutesBottomSheet from "../components/minute/bottom-sheet/MinuteBottomSheet";
 import "spinkit/spinkit.min.css";
 
 export default function CallOverlay({
@@ -12,38 +11,31 @@ export default function CallOverlay({
   onAnswer,
   onReject,
 }) {
-  const [toast, setToast] = useState("");
-  const [showMinutes, setShowMinutes] = useState(false);
   const [locked, setLocked] = useState(false);
 
   // ⏱️ AUTO DISMISS AFTER 30 SECONDS
   useEffect(() => {
     if (!visible) return;
-
     const timer = setTimeout(() => {
       onReject?.();
     }, 30000);
-
     return () => clearTimeout(timer);
   }, [visible, onReject]);
 
-  // ✅ ANSWER HANDLER
+  // reset lock when overlay closes
+  useEffect(() => {
+    if (!visible) setLocked(false);
+  }, [visible]);
+
+  // ✅ ANSWER
   const handleAnswer = () => {
     if (locked) return;
     setLocked(true);
-
-    setToast("Insufficient minutes");
-
-    setTimeout(() => {
-      setToast("");
-      setShowMinutes(true);
-      onAnswer?.(); // close overlay
-    }, 1000);
+    onAnswer?.();
   };
 
-  // ❌ REJECT HANDLER
+  // ❌ REJECT
   const handleReject = () => {
-    setShowMinutes(false);
     onReject?.();
   };
 
@@ -52,32 +44,14 @@ export default function CallOverlay({
   return (
     <div style={styles.overlay}>
 
-      {/* 🍞 TOAST */}
-      {toast && (
-        <div style={styles.toast}>
-          {toast}
-        </div>
-      )}
-
-      {/* 💳 MINUTES BOTTOM SHEET */}
-      <MinutesBottomSheet
-        open={showMinutes}
-        onClose={() => setShowMinutes(false)}
-      />
-
       {/* CENTER */}
       <div style={styles.center}>
         <div style={styles.avatarWrapper}>
           <div className="sk-pulse" style={styles.pulseSpinner} />
-
-          <img
-            src={profileUrl}
-            alt="profile"
-            style={styles.avatar}
-          />
+          <img src={profileUrl} alt="profile" style={styles.avatar} />
         </div>
-
         <div style={styles.name}>{name}</div>
+        <div style={styles.callingText}>Incoming video call...</div>
       </div>
 
       {/* ACTIONS */}
@@ -90,7 +64,6 @@ export default function CallOverlay({
               <div className="sk-bounce-dot" style={{ backgroundColor: "#E53935" }} />
               <div className="sk-bounce-dot" style={{ backgroundColor: "#E53935" }} />
             </div>
-
             <div style={{ ...styles.circle, backgroundColor: "#E53935" }}>
               <img
                 src={rejectIcon}
@@ -99,7 +72,6 @@ export default function CallOverlay({
               />
             </div>
           </div>
-
           <span style={styles.label}>Reject</span>
         </div>
 
@@ -110,21 +82,14 @@ export default function CallOverlay({
               <div className="sk-bounce-dot" style={{ backgroundColor: "#43A047" }} />
               <div className="sk-bounce-dot" style={{ backgroundColor: "#43A047" }} />
             </div>
-
             <div style={{ ...styles.circle, backgroundColor: "#43A047" }}>
-              <img
-                src={answerIcon}
-                alt="answer"
-                style={styles.icon}
-              />
+              <img src={answerIcon} alt="answer" style={styles.icon} />
             </div>
           </div>
-
           <span style={styles.label}>Answer</span>
         </div>
 
       </div>
-
     </div>
   );
 }
@@ -185,6 +150,11 @@ const styles = {
     fontWeight: "bold",
   },
 
+  callingText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: "14px",
+  },
+
   actions: {
     position: "absolute",
     bottom: "40px",
@@ -240,18 +210,5 @@ const styles = {
     marginTop: "8px",
     color: "#fff",
     fontSize: "14px",
-  },
-
-  toast: {
-    position: "absolute",
-    top: "40px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    backgroundColor: "#000",
-    color: "#fff",
-    padding: "10px 16px",
-    borderRadius: "8px",
-    fontSize: "14px",
-    zIndex: 20000,
   },
 };

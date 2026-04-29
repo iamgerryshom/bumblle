@@ -6,6 +6,7 @@ import PaymentScreen from "./screens/PaymentScreen";
 import PaymentInformationConfirmationScreen from "./screens/PaymentInformationConfirmationScreen";
 import PaymentProcessingScreen from "./screens/PaymentProcessingScreen";
 import HomeScreen from "./screens/HomeScreen";
+import VideoCallScreen from "./screens/VideoCallScreen";
 
 
 export default function App() {
