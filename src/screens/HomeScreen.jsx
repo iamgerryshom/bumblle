@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import MinutesBottomSheet from "../components/minute/bottom-sheet/MinuteBottomSheet";
+import CallOverlay from "../screens/IncomingCall";
 import "spinkit/spinkit.min.css";
 import settingIcon from "../assets/icons/setting_vector.svg";
 
@@ -10,6 +11,9 @@ export default function HomeScreen() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+
+  // 📞 CALL STATE
+  const [callUser, setCallUser] = useState(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -35,6 +39,16 @@ export default function HomeScreen() {
         });
 
         setUsers(usersData);
+
+        // 🔥 PICK RANDOM USER AFTER LOAD
+        if (usersData.length > 0) {
+          const random =
+            usersData[Math.floor(Math.random() * usersData.length)];
+
+          setTimeout(() => {
+            setCallUser(random);
+          }, 1500);
+        }
       } catch (error) {
         console.log("Error fetching users:", error);
       } finally {
@@ -47,6 +61,7 @@ export default function HomeScreen() {
 
   return (
     <div style={styles.screen}>
+
       {/* HEADER */}
       <div style={styles.header}>
         <h2 style={styles.title}>People</h2>
@@ -73,19 +88,10 @@ export default function HomeScreen() {
       <div style={styles.list}>
         {loading ? (
           <div style={styles.loaderWrapper}>
-            <div className="sk-circle" style={{ width: "30px", height: "30px" }}>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
-              <div className="sk-circle-dot"></div>
+            <div className="sk-circle" style={{ width: 30, height: 30 }}>
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="sk-circle-dot"></div>
+              ))}
             </div>
           </div>
         ) : (
@@ -103,7 +109,7 @@ export default function HomeScreen() {
         )}
       </div>
 
-      {/* BOTTOM SHEET OVERLAY */}
+      {/* BOTTOM SHEET */}
       {open && (
         <div onClick={() => setOpen(false)} style={styles.sheetOverlay}>
           <div style={styles.sheet}>
@@ -111,6 +117,22 @@ export default function HomeScreen() {
           </div>
         </div>
       )}
+
+      {/* 📞 CALL OVERLAY */}
+      <CallOverlay
+        visible={!!callUser}
+        name={callUser?.name}
+        profileUrl={callUser?.image}
+        onAnswer={() => {
+          console.log("Call answered with:", callUser);
+          setCallUser(null);
+        }}
+        onReject={() => {
+          console.log("Call rejected");
+          setCallUser(null);
+        }}
+      />
+
     </div>
   );
 }
