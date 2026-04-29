@@ -72,7 +72,7 @@ export default function PaymentConfirmationScreen() {
             <div style={styles.header}>
                 <div
                     style={styles.backWrap}
-                    onClick={() => navigate("/payment")}
+                    onClick={() => navigate("/home")}
                 >
                     <img
                         src={backIcon}

@@ -50,7 +50,7 @@ export default function PaymentProcessingScreen() {
             <div style={styles.header}>
                 <div
                     style={styles.backWrap}
-                    onClick={() => navigate("/payment-information-confirmation")}
+                    onClick={() => navigate("/home")}
                 >
                     <img
                         src={backIcon}
