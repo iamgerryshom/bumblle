@@ -65,7 +65,7 @@ export default function PaymentScreen() {
                         onClick={() => navigate("/home")}
                     >
                         <img
-                            src="/src/assets/icons/back-vector.svg"
+                            src={backIcon}
                             alt="back"
                             style={styles.backIcon}
                         />
