@@ -62,7 +62,7 @@ export default function PaymentScreen() {
                 <div style={styles.header}>
                     <div
                         style={styles.iconWrap}
-                        onClick={() => navigate("/checkout")}
+                        onClick={() => navigate("/home")}
                     >
                         <img
                             src="/src/assets/icons/back-vector.svg"
