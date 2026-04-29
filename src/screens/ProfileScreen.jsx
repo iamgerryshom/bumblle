@@ -1,7 +1,41 @@
+import { useEffect, useState } from "react";
+
 import maleIcon from "../assets/icons/gender-male-vector.svg";
 import videoIcon from "../assets/icons/video-vector.svg";
 
+// ✅ Male-only names list
+const NAMES = [
+  "Liam",
+  "Noah",
+  "James",
+  "Oliver",
+  "Elijah",
+  "William",
+  "Henry",
+  "Lucas",
+  "Benjamin",
+  "Theodore",
+];
+
+const STORAGE_KEY = "profile_name";
+
 export default function ProfileScreen() {
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    const savedName = localStorage.getItem(STORAGE_KEY);
+
+    if (savedName) {
+      setName(savedName);
+    } else {
+      const randomName =
+        NAMES[Math.floor(Math.random() * NAMES.length)];
+
+      localStorage.setItem(STORAGE_KEY, randomName);
+      setName(randomName);
+    }
+  }, []);
+
   return (
     <div style={styles.screen}>
       {/* PROFILE HEADER */}
@@ -15,18 +49,13 @@ export default function ProfileScreen() {
 
         {/* INFO */}
         <div style={styles.info}>
-          
-          <h2 style={styles.name}>Username</h2>
+          <h2 style={styles.name}>{name || "Loading..."}</h2>
 
           {/* META ROW */}
           <div style={styles.metaRow}>
-            {/* AGE */}
+            {/* AGE / GENDER */}
             <div style={styles.metaItem}>
-              <img
-            src={maleIcon}
-                alt="gender"
-                style={styles.iconSmall}
-              />
+              <img src={maleIcon} alt="gender" style={styles.iconSmall} />
               <span style={styles.metaText}>21</span>
             </div>
 
@@ -49,18 +78,11 @@ export default function ProfileScreen() {
       {/* STATS CARD */}
       <div style={styles.card}>
         <div style={styles.stats}>
-          <img
-            src={videoIcon}
-            alt="videos"
-            style={styles.videoIcon}
-          />
+          <img src={videoIcon} alt="videos" style={styles.videoIcon} />
           <span style={styles.statNumber}>10</span>
         </div>
 
-        <button style={styles.button}>
-          Get Minutes
-        </button>
-        
+        <button style={styles.button}>Get Minutes</button>
       </div>
     </div>
   );
@@ -73,7 +95,7 @@ const styles = {
 
   header: {
     display: "flex",
-    alignItems: "center", // ✅ FIXED ALIGNMENT
+    alignItems: "center",
     gap: "12px",
     marginTop: "20px",
   },
@@ -99,7 +121,6 @@ const styles = {
     fontSize: "20px",
     fontWeight: "bold",
     color: "#000",
-    lineHeight: 1.1,
   },
 
   metaRow: {
@@ -114,7 +135,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "4px",
-    lineHeight: 1,
   },
 
   metaText: {
@@ -125,14 +145,12 @@ const styles = {
   iconSmall: {
     width: "14px",
     height: "14px",
-    display: "block", // ✅ FIX SVG alignment issue
   },
 
   flag: {
     width: "14px",
     height: "14px",
     borderRadius: "50%",
-    display: "block",
   },
 
   verified: {
@@ -172,12 +190,12 @@ const styles = {
   },
 
   button: {
-  backgroundColor: "#fff",
-  border: "none",
-  padding: "10px 16px",
-  borderRadius: "12px",
-  cursor: "pointer",
-  fontWeight: "500",
-  color: "#000", // ✅ ADD THIS
-},
+    backgroundColor: "#fff",
+    border: "none",
+    padding: "10px 16px",
+    borderRadius: "12px",
+    cursor: "pointer",
+    fontWeight: "500",
+    color: "#000",
+  },
 };

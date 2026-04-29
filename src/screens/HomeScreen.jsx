@@ -15,14 +15,13 @@ export default function HomeScreen() {
   // 📞 CALL STATE
   const [callUser, setCallUser] = useState(null);
 
+  // 🍞 TOAST STATE
+  const [toast, setToast] = useState(false);
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const q = query(
-          collection(db, "users"),
-          where("gender", "==", "F")
-        );
-
+        const q = query(collection(db, "users"), where("gender", "==", "F"));
         const snapshot = await getDocs(q);
 
         const usersData = snapshot.docs.map((doc) => {
@@ -59,17 +58,26 @@ export default function HomeScreen() {
     fetchUsers();
   }, []);
 
+  // 📞 ANSWER CALL LOGIC
+  const handleAnswer = () => {
+    // 1. show toast
+    setToast(true);
+
+    setTimeout(() => setToast(false), 2000);
+
+    // 2. open minutes sheet
+    setOpen(true);
+
+    // 3. close call
+    setCallUser(null);
+  };
+
   return (
     <div style={styles.screen}>
 
       {/* HEADER */}
       <div style={styles.header}>
         <h2 style={styles.title}>People</h2>
-
-        <MinutesBottomSheet
-          open={open}
-          onClose={() => setOpen(false)}
-        />
 
         <button style={styles.iconBtn}>
           <img
@@ -109,35 +117,44 @@ export default function HomeScreen() {
         )}
       </div>
 
-      {/* BOTTOM SHEET */}
-      {open && (
-        <div onClick={() => setOpen(false)} style={styles.sheetOverlay}>
-          <div style={styles.sheet}>
-            <p>Minutes Bottom Sheet</p>
-          </div>
-        </div>
-      )}
+      {/* MINUTES BOTTOM SHEET */}
+      <MinutesBottomSheet
+        open={open}
+        onClose={() => setOpen(false)}
+      />
 
       {/* 📞 CALL OVERLAY */}
       <CallOverlay
         visible={!!callUser}
         name={callUser?.name}
         profileUrl={callUser?.image}
-        onAnswer={() => {
-          console.log("Call answered with:", callUser);
-          setCallUser(null);
-        }}
-        onReject={() => {
-          console.log("Call rejected");
-          setCallUser(null);
-        }}
+        onAnswer={handleAnswer}   // 🔥 FIXED HERE
+        onReject={() => setCallUser(null)}
       />
 
+      {/* 🍞 TOAST */}
+      {toast && (
+        <div style={styles.toast}>
+          Insufficient minutes
+        </div>
+      )}
     </div>
   );
 }
 
 const styles = {
+  toast: {
+  position: "fixed",
+  top: "20px",
+  left: "50%",
+  transform: "translateX(-50%)",
+  backgroundColor: "#000",
+  color: "#fff",
+  padding: "10px 16px",
+  borderRadius: "8px",
+  fontSize: "14px",
+  zIndex: 99999,
+},
   screen: {
     height: "100vh",
     display: "flex",
