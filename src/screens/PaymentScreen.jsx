@@ -51,7 +51,7 @@ export default function PaymentScreen() {
             p = p.substring(1);
         }
 
-        // convert local format 07XXXXXXXX / 01XXXXXXXX → 254XXXXXXXXX
+        // convert local format 07XXXXXXXX / 01XXXXXXXX → 254XXXXXXXXXr
         if (p.startsWith("0")) {
             p = "254" + p.substring(1);
         }
