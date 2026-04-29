@@ -14,7 +14,7 @@ export default function App() {
       <Routes>
 
         {/* Logi Screen */}
-        <Route path="/" element={<LoginScreen />} />
+        <Route path="/" element={<MainScreen />} />
 
         {/* Main Screen */}
         <Route path="/home" element={<MainScreen />} />
