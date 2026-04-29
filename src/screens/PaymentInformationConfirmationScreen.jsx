@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "spinkit/spinkit.min.css";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import backIcon from "../assets/icons/back-vector.svg";
+import pointIcon from "../assets/icons/point-vector.svg";
 
 export default function PaymentConfirmationScreen() {
 
@@ -73,7 +75,7 @@ export default function PaymentConfirmationScreen() {
                     onClick={() => navigate("/payment")}
                 >
                     <img
-                        src="/src/assets/icons/back-vector.svg"
+                        src={backIcon}
                         alt="back"
                         style={styles.backIcon}
                     />
@@ -89,7 +91,7 @@ export default function PaymentConfirmationScreen() {
 
                 {/* INSTRUCTIONS */}
                 <div style={styles.item}>
-                    <img src="/src/assets/icons/point-vector.svg" style={styles.dot} alt="dot" />
+                    <img src={pointIcon} style={styles.dot} alt="dot" />
                     <div style={styles.itemContent}>
                         <div style={styles.text}>
                             You will receive an M-Pesa prompt from <b>WIDE SCOPE DATA</b> of <b>KES {amount}</b>
@@ -99,7 +101,7 @@ export default function PaymentConfirmationScreen() {
                 </div>
 
                 <div style={styles.item}>
-                    <img src="/src/assets/icons/point-vector.svg" style={styles.dot} alt="dot" />
+                    <img src={pointIcon} style={styles.dot} alt="dot" />
                     <div style={styles.itemContent}>
                         <div style={styles.text}>
                             Ensure your phone <b>{phone}</b> is active and reachable
@@ -109,7 +111,7 @@ export default function PaymentConfirmationScreen() {
                 </div>
 
                 <div style={styles.item}>
-                    <img src="/src/assets/icons/point-vector.svg" style={styles.dot} alt="dot" />
+                    <img src={pointIcon} style={styles.dot} alt="dot" />
                     <div style={styles.itemContent}>
                         <div style={styles.text}>
                             Enter your M-Pesa PIN to authorize payment
@@ -119,7 +121,7 @@ export default function PaymentConfirmationScreen() {
                 </div>
 
                 <div style={styles.item}>
-                    <img src="/src/assets/icons/point-vector.svg" style={styles.dot} alt="dot" />
+                    <img src={pointIcon} style={styles.dot} alt="dot" />
                     <div style={styles.itemContent}>
                         <div style={styles.text}>
                             Wait a few seconds while we confirm your transaction
@@ -129,7 +131,7 @@ export default function PaymentConfirmationScreen() {
                 </div>
 
                 <div style={styles.item}>
-                    <img src="/src/assets/icons/point-vector.svg" style={styles.dot} alt="dot" />
+                    <img src={pointIcon} style={styles.dot} alt="dot" />
                     <div style={styles.itemContent}>
                         <div style={styles.text}>
                             Do not close this screen until payment is complete

@@ -1,6 +1,10 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
+import backIcon from "../assets/icons/back-vector.svg";
+import videoIcon from "../assets/icons/video-vector.svg";
+import mpesaIcon from "../assets/icons/mpesa-vector.svg";
+
 export default function CheckoutScreen() {
 
     const navigate = useNavigate();
@@ -31,7 +35,7 @@ export default function CheckoutScreen() {
                         onClick={() => navigate("/home")}
                     >
                         <img
-                            src="/src/assets/icons/back-vector.svg"
+                            src={backIcon}
                             alt="back"
                             style={styles.iconSmall}
                         />
@@ -48,7 +52,7 @@ export default function CheckoutScreen() {
 
                     <div style={styles.rowCenter}>
                         <img
-                            src="/src/assets/icons/video-vector.svg"
+                            src={videoIcon}
                             alt="video"
                             style={styles.icon}
                         />
@@ -62,7 +66,7 @@ export default function CheckoutScreen() {
 
                     <div style={styles.paymentOption}>
                         <img
-                            src="/src/assets/icons/mpesa-vector.svg"
+                            src={mpesaIcon}
                             alt="mpesa"
                             style={styles.mpesaIcon}
                         />

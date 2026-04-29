@@ -1,3 +1,5 @@
+import videoIcon from "../../../assets/icons/video-vector.svg";
+
 export default function MinutesCard({ minutes = "10 Mins", price = "Ksh 100" }) {
   return (
     <div style={styles.card}>
@@ -5,7 +7,7 @@ export default function MinutesCard({ minutes = "10 Mins", price = "Ksh 100" }) 
 
         {/* ICON */}
         <img
-          src="/src/assets/icons/video-vector.svg"
+          src={videoIcon}
           alt="video"
           style={styles.icon}
         />

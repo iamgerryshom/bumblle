@@ -3,6 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import "spinkit/spinkit.min.css";
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 
+import backIcon from "../assets/icons/back-vector.svg";
+import tickIcon from "../assets/icons/tick-vector.svg";
+import cancelIcon from "../assets/icons/cancel-vector.svg";
+
 export default function PaymentProcessingScreen() {
 
     const navigate = useNavigate();
@@ -49,7 +53,7 @@ export default function PaymentProcessingScreen() {
                     onClick={() => navigate("/payment-information-confirmation")}
                 >
                     <img
-                        src="/src/assets/icons/back-vector.svg"
+                        src={backIcon}
                         alt="back"
                         style={styles.backIcon}
                     />
@@ -80,7 +84,7 @@ export default function PaymentProcessingScreen() {
                 {status === "success" && (
                     <>
                         <img
-                            src="/src/assets/icons/tick-vector.svg"
+                            src={tickIcon}
                             alt="success"
                             style={{ ...styles.icon, ...styles.successTint }}
                         />
@@ -97,7 +101,7 @@ export default function PaymentProcessingScreen() {
                 {status === "failed" && (
                     <>
                         <img
-                            src="/src/assets/icons/cancel-vector.svg"
+                            src={cancelIcon}
                             alt="failed"
                             style={{ ...styles.icon, ...styles.failTint }}
                         />

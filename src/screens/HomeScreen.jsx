@@ -4,6 +4,7 @@ import { db } from "../firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import MinutesBottomSheet from "../components/minute/bottom-sheet/MinuteBottomSheet";
 import "spinkit/spinkit.min.css";
+import settingIcon from "../assets/icons/setting_vector.svg";
 
 export default function HomeScreen() {
   const [users, setUsers] = useState([]);
@@ -57,7 +58,7 @@ export default function HomeScreen() {
 
         <button style={styles.iconBtn}>
           <img
-            src="/src/assets/icons/setting_vector.svg"
+            src={settingIcon}
             alt="settings"
             style={{
               width: 22,

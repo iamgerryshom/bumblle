@@ -1,3 +1,5 @@
+import noDataIcon from "../assets/icons/no_data_vector.svg";
+
 export default function CallScreen() {
   return (
     <div style={styles.screen}>
@@ -12,7 +14,7 @@ export default function CallScreen() {
       {/* EMPTY STATE */}
       <div style={styles.empty}>
         <img
-          src="/src/assets/icons/no_data_vector.svg"
+          src={noDataIcon}
           alt="no data"
           style={styles.image}
         />

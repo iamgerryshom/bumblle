@@ -1,3 +1,5 @@
+import videoIcon from "../../assets/icons/video-vector.svg";
+
 function UserItem({ image, name, region, flag, isOnline, onVideoClick }) {
   return (
     <div style={styles.card}>
@@ -27,7 +29,7 @@ function UserItem({ image, name, region, flag, isOnline, onVideoClick }) {
         <div style={styles.videoBtn} onClick={onVideoClick}>
           <div style={styles.circle}>
             <img
-              src="/src/assets/icons/video-vector.svg"
+              src={videoIcon}
               alt="video"
               style={styles.videoIcon}
             />

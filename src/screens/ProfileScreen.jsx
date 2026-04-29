@@ -1,3 +1,6 @@
+import maleIcon from "../assets/icons/gender-male-vector.svg";
+import videoIcon from "../assets/icons/video-vector.svg";
+
 export default function ProfileScreen() {
   return (
     <div style={styles.screen}>
@@ -20,7 +23,7 @@ export default function ProfileScreen() {
             {/* AGE */}
             <div style={styles.metaItem}>
               <img
-            src="/src/assets/icons/gender-male-vector.svg"
+            src={maleIcon}
                 alt="gender"
                 style={styles.iconSmall}
               />
@@ -47,7 +50,7 @@ export default function ProfileScreen() {
       <div style={styles.card}>
         <div style={styles.stats}>
           <img
-            src="/src/assets/icons/video-vector.svg"
+            src={videoIcon}
             alt="videos"
             style={styles.videoIcon}
           />
