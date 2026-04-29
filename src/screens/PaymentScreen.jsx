@@ -2,39 +2,75 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import backIcon from "../assets/icons/back-vector.svg";
 
-
 export default function PaymentScreen() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // 🔥 receive amount from previous screen
+    // 💡 amount passed from previous screen
     const amount = location.state?.amount;
 
     const [phone, setPhone] = useState("");
 
-    // 🔥 PHONE NORMALIZER
+    /*
+    =========================================================
+    📌 PHONE INPUT RULES (UPDATED INSTRUCTIONS)
+    =========================================================
+    ✔ Accepts:
+        - 07XXXXXXXX
+        - 01XXXXXXXX
+        - 7XXXXXXXX
+        - 1XXXXXXXX
+        - +2547XXXXXXXX
+        - +2541XXXXXXXX
+        - 2547XXXXXXXX
+        - 2541XXXXXXXX
+
+    ✔ Auto-normalization:
+        - removes spaces
+        - removes "+"
+        - converts local formats (07 / 01 / 7 / 1) → 254XXXXXXXXX
+
+    ✔ Final format:
+        - MUST be 12 digits
+        - MUST start with 2547 OR 2541
+
+    ❌ Rejects:
+        - letters
+        - invalid length
+        - non-Kenya-like formats
+    =========================================================
+    */
+
     const normalizePhone = (input) => {
         if (!input) return null;
 
         let p = input.replace(/\s+/g, "").replace(/[^0-9+]/g, "");
 
+        // remove "+"
         if (p.startsWith("+")) {
             p = p.substring(1);
         }
 
-        // 07XXXXXXXX → 2547XXXXXXXX
+        // convert local format 07XXXXXXXX / 01XXXXXXXX → 254XXXXXXXXX
         if (p.startsWith("0")) {
             p = "254" + p.substring(1);
         }
 
-        // 7XXXXXXXX → 2547XXXXXXXX
-        if (p.startsWith("7") && p.length === 9) {
+        // convert short format 7XXXXXXXX / 1XXXXXXXX → 254XXXXXXXXX
+        if (p.length === 9) {
             p = "254" + p;
         }
 
-        // validate Safaricom format
-        if (!p.startsWith("2547")) return null;
+        // must be digits only
+        if (!/^\d+$/.test(p)) return null;
+
+        // must be full international format
         if (p.length !== 12) return null;
+
+        // allow Safaricom (2547...) and Airtel (2541...)
+        if (!p.startsWith("2547") && !p.startsWith("2541")) {
+            return null;
+        }
 
         return p;
     };
@@ -43,14 +79,14 @@ export default function PaymentScreen() {
         const normalizedPhone = normalizePhone(phone);
 
         if (!normalizedPhone) {
-            alert("Enter a valid Safaricom number");
+            alert("Enter a valid phone number (07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX)");
             return;
         }
 
         navigate("/payment-information-confirmation", {
             state: {
                 phone: normalizedPhone,
-                amount, // 🔥 passed forward
+                amount,
             },
         });
     };
@@ -58,7 +94,7 @@ export default function PaymentScreen() {
     return (
         <div style={styles.container}>
 
-            {/* TOP */}
+            {/* TOP SECTION */}
             <div style={styles.top}>
 
                 <div style={styles.header}>
@@ -84,7 +120,7 @@ export default function PaymentScreen() {
 
             </div>
 
-            {/* CARD */}
+            {/* INPUT CARD */}
             <div style={styles.card}>
 
                 <div style={styles.inputRow}>
@@ -98,7 +134,7 @@ export default function PaymentScreen() {
 
                     <input
                         type="tel"
-                        placeholder="7XXXXXXXX"
+                        placeholder="Mpesa  number"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         style={styles.input}
@@ -106,7 +142,7 @@ export default function PaymentScreen() {
                 </div>
 
                 <p style={styles.helpText}>
-                    Enter phone number in format 7XXXXXXXX or 07XXXXXXXX
+                    7XXXXXXXX, 1XXXXXXXX
                 </p>
 
                 <button style={styles.payBtn} onClick={handlePay}>
@@ -161,7 +197,7 @@ const styles = {
         fontSize: 17,
         fontWeight: "bold",
         margin: 0,
-        color: "#7d7d7dff",
+        color: "#7d7d7d",
     },
 
     amount: {
