@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import MinutesCard from "../card/MinutesCard";
+import cancelIcon from "../../../assets/icons/cancel-vector.svg"; // 👈 reuse or replace with close icon
 
 export default function MinutesBottomSheet({ open, onClose }) {
   const navigate = useNavigate();
@@ -7,16 +8,16 @@ export default function MinutesBottomSheet({ open, onClose }) {
   if (!open) return null;
 
   const minutesData = [
-    { id: 1, minutes: 10, price: 150 },
-    { id: 2, minutes: 15, price: 200 },
-    { id: 3, minutes: 20, price: 250 },
-    { id: 4, minutes: 30, price: 300 },
-    { id: 5, minutes: 45, price: 350 },
-    { id: 6, minutes: 60, price: 450 },
+    { id: 1, minutes: 35, price: 100 },
+    { id: 2, minutes: 50, price: 150 },
+    { id: 3, minutes: 70, price: 200 },
+    { id: 4, minutes: 100, price: 250 },
+    { id: 5, minutes: 130, price: 300 },
+    { id: 6, minutes: 160, price: 350 },
   ];
 
   const handleSelect = (item) => {
-    onClose(); // close bottom sheet first
+    onClose();
 
     navigate("/checkout", {
       state: {
@@ -33,6 +34,11 @@ export default function MinutesBottomSheet({ open, onClose }) {
         {/* HEADER */}
         <div style={styles.header}>
           <h3 style={styles.title}>Buy Minutes</h3>
+
+          {/* ❌ CLOSE ICON */}
+          <button style={styles.closeBtn} onClick={onClose}>
+            <img src={cancelIcon} alt="close" style={styles.icon} />
+          </button>
         </div>
 
         {/* GRID */}
@@ -40,7 +46,9 @@ export default function MinutesBottomSheet({ open, onClose }) {
           {minutesData.map((item) => (
             <div key={item.id} onClick={() => handleSelect(item)}>
               <MinutesCard
-                minutes={`${item.minutes} Mins`} price={`Ksh ${item.price}`}
+                minutes={`${item.minutes} Mins`}
+                price={`Ksh ${item.price}`}
+                showHot={item.id == 1 ? true : false}
               />
             </div>
           ))}
@@ -76,7 +84,11 @@ const styles = {
   },
 
   header: {
+    position: "relative",
     padding: "8px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   title: {
@@ -85,9 +97,30 @@ const styles = {
     margin: 0,
   },
 
+  closeBtn: {
+  position: "absolute",
+  right: "10px",
+  top: "6px",
+  width: "40px",        // ⬆️ bigger touch area
+  height: "40px",
+  border: "none",
+  background: "#F2F2F2", // optional: subtle background
+  borderRadius: "50%",   // makes it look like a real button
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+icon: {
+  width: "22px",  // ⬆️ bigger icon
+  height: "22px",
+  opacity: 0.8,
+},
+
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)", // 👈 span count = 3
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: "8px",
     marginTop: "8px",
   },

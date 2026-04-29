@@ -1,9 +1,25 @@
+import { useState } from "react";
 import videoIcon from "../../assets/icons/video-vector.svg";
 
 function UserItem({ image, name, region, flag, isOnline, onVideoClick }) {
+  const [loaded, setLoaded] = useState(false);
+
   return (
     <div style={styles.card}>
-      <img src={image} alt="user" style={styles.image} />
+      
+      {/* IMAGE */}
+      <img
+        src={image}
+        alt="user"
+        style={{
+          ...styles.image,
+          opacity: loaded ? 1 : 0,
+        }}
+        onLoad={() => setLoaded(true)}
+      />
+
+      {/* optional background placeholder to avoid flicker */}
+      {!loaded && <div style={styles.placeholder} />}
 
       <div style={styles.overlay} />
 
@@ -28,11 +44,7 @@ function UserItem({ image, name, region, flag, isOnline, onVideoClick }) {
         {/* VIDEO BUTTON */}
         <div style={styles.videoBtn} onClick={onVideoClick}>
           <div style={styles.circle}>
-            <img
-              src={videoIcon}
-              alt="video"
-              style={styles.videoIcon}
-            />
+            <img src={videoIcon} alt="video" style={styles.videoIcon} />
           </div>
         </div>
       </div>
@@ -48,12 +60,21 @@ const styles = {
     borderRadius: "16px",
     overflow: "hidden",
     marginTop: "0dp",
+    backgroundColor: "#111", // ✅ prevents flash/stretch feel
   },
 
   image: {
     width: "100%",
     height: "100%",
     objectFit: "cover",
+    display: "block", // ✅ IMPORTANT FIX (removes inline-image gap)
+    transition: "opacity 0.3s ease",
+  },
+
+  placeholder: {
+    position: "absolute",
+    inset: 0,
+    backgroundColor: "#222",
   },
 
   overlay: {
@@ -79,7 +100,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "6px",
-    minWidth: 0, // important for layout stability
+    minWidth: 0,
   },
 
   row: {
@@ -106,9 +127,7 @@ const styles = {
     color: "#fff",
     fontWeight: "bold",
     fontSize: "14px",
-
-    maxWidth: "140px", // 👈 key fix (controls alignment)
-
+    maxWidth: "140px",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -136,7 +155,8 @@ const styles = {
   videoIcon: {
     width: "24px",
     height: "24px",
-    filter: "invert(28%) sepia(18%) saturate(2500%) hue-rotate(225deg) brightness(90%) contrast(90%)"
+    filter:
+      "invert(28%) sepia(18%) saturate(2500%) hue-rotate(225deg) brightness(90%) contrast(90%)",
   },
 
   circle: {
@@ -147,7 +167,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "16px",
     cursor: "pointer",
   },
 };

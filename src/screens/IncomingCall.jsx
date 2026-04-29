@@ -13,6 +13,9 @@ export default function CallOverlay({
 }) {
   const [locked, setLocked] = useState(false);
 
+  // ✅ IMAGE LOAD STATE (NEW FIX)
+  const [loaded, setLoaded] = useState(false);
+
   // ⏱️ AUTO DISMISS AFTER 30 SECONDS
   useEffect(() => {
     if (!visible) return;
@@ -22,9 +25,12 @@ export default function CallOverlay({
     return () => clearTimeout(timer);
   }, [visible, onReject]);
 
-  // reset lock when overlay closes
+  // reset state when closed
   useEffect(() => {
-    if (!visible) setLocked(false);
+    if (!visible) {
+      setLocked(false);
+      setLoaded(false); // ✅ reset image state
+    }
   }, [visible]);
 
   // ✅ ANSWER
@@ -47,9 +53,25 @@ export default function CallOverlay({
       {/* CENTER */}
       <div style={styles.center}>
         <div style={styles.avatarWrapper}>
-          <div className="sk-pulse" style={styles.pulseSpinner} />
-          <img src={profileUrl} alt="profile" style={styles.avatar} />
+
+          {/* 🔥 SMOOTH LOAD FIX */}
+          {!loaded && (
+            <div className="sk-pulse" style={styles.pulseSpinner} />
+          )}
+
+          <img
+            src={profileUrl}
+            alt="profile"
+            style={{
+              ...styles.avatar,
+              opacity: loaded ? 1 : 0,
+              transform: loaded ? "scale(1)" : "scale(1.05)",
+              transition: "all 0.3s ease",
+            }}
+            onLoad={() => setLoaded(true)}
+          />
         </div>
+
         <div style={styles.name}>{name}</div>
         <div style={styles.callingText}>Incoming video call...</div>
       </div>

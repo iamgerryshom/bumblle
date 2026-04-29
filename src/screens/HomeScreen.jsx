@@ -16,9 +16,11 @@ export default function HomeScreen() {
   const [callUser, setCallUser] = useState(null);
   const [videoCallVisible, setVideoCallVisible] = useState(false);
   const [popup, setPopup] = useState(null);
-  const [toast, setToast] = useState(null); // ✅ toast state
+  const [toast, setToast] = useState(null);
 
-  const hasHadFirstCall = useRef(localStorage.getItem("has_had_first_call") === "true");
+  const hasHadFirstCall = useRef(
+    localStorage.getItem("has_had_first_call") === "true"
+  );
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -41,8 +43,9 @@ export default function HomeScreen() {
       setUsers(usersData);
 
       if (usersData.length > 0) {
-        const random = usersData[Math.floor(Math.random() * usersData.length)];
-        setTimeout(() => setCallUser(random), 1500);
+        const random =
+          usersData[Math.floor(Math.random() * usersData.length)];
+        setTimeout(() => setCallUser(random), 3000);
       }
 
       setLoading(false);
@@ -55,7 +58,6 @@ export default function HomeScreen() {
     setCallUser(null);
 
     if (hasHadFirstCall.current) {
-      // ✅ Show toast then open bottom sheet
       setToast("Insufficient minutes");
       setTimeout(() => setToast(null), 2500);
       setOpen(true);
@@ -66,7 +68,6 @@ export default function HomeScreen() {
     localStorage.setItem("has_had_first_call", "true");
 
     setVideoCallVisible(true);
-    setOpen(true);
   };
 
   const handleReject = () => {
@@ -83,8 +84,8 @@ export default function HomeScreen() {
 
       setTimeout(() => {
         setPopup(null);
-        setOpen(true);
       }, 2000);
+
     }, 30000);
 
     return () => clearTimeout(timer);
@@ -101,7 +102,17 @@ export default function HomeScreen() {
 
       <div style={styles.list}>
         {loading ? (
-          <div style={styles.loaderWrapper} />
+          <div style={styles.loaderWrapper}>
+            {/* ✅ FIXED LOADER */}
+            <div
+              className="sk-circle"
+              style={{ width: 40, height: 40, color: "#4E3480" }}
+            >
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="sk-circle-dot"></div>
+              ))}
+            </div>
+          </div>
         ) : (
           users.map((user) => (
             <UserItem
@@ -132,14 +143,13 @@ export default function HomeScreen() {
         onEnd={() => setVideoCallVisible(false)}
       />
 
-      {/* ✅ Toast */}
-      {toast && (
-        <div style={styles.toast}>{toast}</div>
-      )}
+      {toast && <div style={styles.toast}>{toast}</div>}
 
       {popup === "insufficient" && (
         <div style={styles.popupOverlay}>
-          <div style={styles.popup}>Call Ended - Insufficient minutes</div>
+          <div style={styles.popup}>
+            Call Ended - Insufficient minutes
+          </div>
         </div>
       )}
     </div>
@@ -190,10 +200,11 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     padding: "40px",
+    minHeight: "200px",
   },
   toast: {
     position: "fixed",
-    bottom: "100px", // sits above the bottom sheet
+    bottom: "100px",
     left: "50%",
     transform: "translateX(-50%)",
     backgroundColor: "#222",

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 
 import maleIcon from "../assets/icons/gender-male-vector.svg";
 import videoIcon from "../assets/icons/video-vector.svg";
+import MinutesBottomSheet from "../components/minute/bottom-sheet/MinuteBottomSheet";
 
-// ✅ Male-only names list
 const NAMES = [
   "Liam",
   "Noah",
@@ -21,6 +21,7 @@ const STORAGE_KEY = "profile_name";
 
 export default function ProfileScreen() {
   const [name, setName] = useState("");
+  const [open, setOpen] = useState(false); // ✅ bottom sheet state
 
   useEffect(() => {
     const savedName = localStorage.getItem(STORAGE_KEY);
@@ -40,26 +41,21 @@ export default function ProfileScreen() {
     <div style={styles.screen}>
       {/* PROFILE HEADER */}
       <div style={styles.header}>
-        {/* AVATAR */}
         <img
           src="https://i.pravatar.cc/150?img=12"
           alt="profile"
           style={styles.avatar}
         />
 
-        {/* INFO */}
         <div style={styles.info}>
           <h2 style={styles.name}>{name || "Loading..."}</h2>
 
-          {/* META ROW */}
           <div style={styles.metaRow}>
-            {/* AGE / GENDER */}
             <div style={styles.metaItem}>
               <img src={maleIcon} alt="gender" style={styles.iconSmall} />
               <span style={styles.metaText}>21</span>
             </div>
 
-            {/* REGION */}
             <div style={styles.metaItem}>
               <img
                 src="https://flagcdn.com/w40/ke.png"
@@ -69,7 +65,6 @@ export default function ProfileScreen() {
               <span style={styles.metaText}>Kenya</span>
             </div>
 
-            {/* VERIFIED */}
             <span style={styles.verified}>Verified</span>
           </div>
         </div>
@@ -79,11 +74,20 @@ export default function ProfileScreen() {
       <div style={styles.card}>
         <div style={styles.stats}>
           <img src={videoIcon} alt="videos" style={styles.videoIcon} />
-          <span style={styles.statNumber}>10</span>
+          <span style={styles.statNumber}>1 Minute</span>
         </div>
 
-        <button style={styles.button}>Get Minutes</button>
+        {/* ✅ FIXED BUTTON */}
+        <button style={styles.button} onClick={() => setOpen(true)}>
+          Get Minutes
+        </button>
       </div>
+
+      {/* ✅ BOTTOM SHEET */}
+      <MinutesBottomSheet
+        open={open}
+        onClose={() => setOpen(false)}
+      />
     </div>
   );
 }
@@ -91,6 +95,8 @@ export default function ProfileScreen() {
 const styles = {
   screen: {
     padding: "16px",
+    backgroundColor: "#fff", // optional safety
+    minHeight: "100vh",
   },
 
   header: {
@@ -106,14 +112,11 @@ const styles = {
     borderRadius: "50%",
     border: "4px solid #362459",
     objectFit: "cover",
-    flexShrink: 0,
   },
 
   info: {
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
-    lineHeight: 1.2,
   },
 
   name: {
@@ -184,7 +187,7 @@ const styles = {
   },
 
   statNumber: {
-    fontSize: "20px",
+    fontSize: "16px",
     fontWeight: "bold",
     color: "#fff",
   },
@@ -195,7 +198,7 @@ const styles = {
     padding: "10px 16px",
     borderRadius: "12px",
     cursor: "pointer",
-    fontWeight: "500",
-    color: "#000",
+    fontWeight: "600",
+    color: "#4E3480", // ✅ FIX (text now visible)
   },
 };
