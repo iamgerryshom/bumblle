@@ -18,7 +18,7 @@ export default function MinutesBottomSheet({ open, onClose }) {
     { id: 3, minutes: 70,  price: 200 },
     { id: 4, minutes: 100, price: 250 },
     { id: 5, minutes: 130, price: 300 },
-    { id: 6, minutes: 160, price: 1 },
+    { id: 6, minutes: 160, price: 350 },
   ];
 
   const handleSelect = (item) => {
