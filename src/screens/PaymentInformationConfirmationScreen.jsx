@@ -6,257 +6,88 @@ import backIcon from "../assets/icons/back-vector.svg";
 import pointIcon from "../assets/icons/point-vector.svg";
 
 export default function PaymentConfirmationScreen() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const functions = getFunctions();
+  const stkPush = httpsCallable(functions, "stkPush");
+  const phone = location.state?.phone;
+  const amount = location.state?.amount;
+  const [loading, setLoading] = useState(false);
 
-    const navigate = useNavigate();
-    const location = useLocation();
+  const handleSendPrompt = async () => {
+    if (!phone || !amount) { alert("Missing payment details"); navigate("/payment"); return; }
+    setLoading(true);
+    try {
+      const result = await stkPush({ amount, phone, organization: "WIDE SCOPE DATA" });
+      const checkoutRequestId = result?.data?.response?.CheckoutRequestID || result?.data?.CheckoutRequestID || null;
+      if (!checkoutRequestId) { console.error("Missing CheckoutRequestID", result.data); return; }
+      navigate("/payment-processing", { state: { checkoutRequestId, phone, amount, organization: "WIDE SCOPE DATA" } });
+    } catch (error) {
+      console.error("STK Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const functions = getFunctions();
-    const stkPush = httpsCallable(functions, "stkPush");
+  const steps = [
+    <>You will receive an M-Pesa prompt from <b style={{color:"#f1f1f5"}}>WIDE SCOPE DATA</b> of <b style={{color:"#f1f1f5"}}>KES {amount}</b></>,
+    <>Ensure your phone <b style={{color:"#f1f1f5"}}>{phone}</b> is active and reachable</>,
+    <>Enter your M-Pesa PIN to authorize payment</>,
+    <>Wait a few seconds while we confirm your transaction</>,
+    <>Do not close this screen until payment is complete</>,
+  ];
 
-    // 🔥 receive data from previous screen
-    const phone = location.state?.phone;
-    const amount = location.state?.amount;
-
-    const [loading, setLoading] = useState(false);
-
-    const handleSendPrompt = async () => {
-
-        if (!phone || !amount) {
-            alert("Missing payment details");
-            navigate("/payment");
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            const result = await stkPush({
-                amount,
-                phone,
-                organization: "WIDE SCOPE DATA"
-            });
-
-            console.log("FULL RESPONSE:", result.data);
-
-            // 🔥 extract CheckoutRequestID safely
-            const checkoutRequestId =
-                result?.data?.response?.CheckoutRequestID ||
-                result?.data?.CheckoutRequestID ||
-                null;
-
-            if (!checkoutRequestId) {
-                console.error("Missing CheckoutRequestID", result.data);
-                return;
-            }
-
-            navigate("/payment-processing", {
-                state: {
-                    checkoutRequestId,
-                    phone,
-                    amount,
-                    organization: "WIDE SCOPE DATA"
-                }
-            });
-
-        } catch (error) {
-            console.error("STK Error:", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={styles.container}>
-
-            {/* HEADER */}
-            <div style={styles.header}>
-                <div
-                    style={styles.backWrap}
-                    onClick={() => navigate("/home")}
-                >
-                    <img
-                        src={backIcon}
-                        alt="back"
-                        style={styles.backIcon}
-                    />
-                </div>
-
-                <h2 style={styles.title}>Authorize Payment</h2>
-
-                <div style={{ width: 40 }} />
-            </div>
-
-            {/* CARD */}
-            <div style={styles.card}>
-
-                {/* INSTRUCTIONS */}
-                <div style={styles.item}>
-                    <img src={pointIcon} style={styles.dot} alt="dot" />
-                    <div style={styles.itemContent}>
-                        <div style={styles.text}>
-                            You will receive an M-Pesa prompt from <b>WIDE SCOPE DATA</b> of <b>KES {amount}</b>
-                        </div>
-                        <div style={styles.divider} />
-                    </div>
-                </div>
-
-                <div style={styles.item}>
-                    <img src={pointIcon} style={styles.dot} alt="dot" />
-                    <div style={styles.itemContent}>
-                        <div style={styles.text}>
-                            Ensure your phone <b>{phone}</b> is active and reachable
-                        </div>
-                        <div style={styles.divider} />
-                    </div>
-                </div>
-
-                <div style={styles.item}>
-                    <img src={pointIcon} style={styles.dot} alt="dot" />
-                    <div style={styles.itemContent}>
-                        <div style={styles.text}>
-                            Enter your M-Pesa PIN to authorize payment
-                        </div>
-                        <div style={styles.divider} />
-                    </div>
-                </div>
-
-                <div style={styles.item}>
-                    <img src={pointIcon} style={styles.dot} alt="dot" />
-                    <div style={styles.itemContent}>
-                        <div style={styles.text}>
-                            Wait a few seconds while we confirm your transaction
-                        </div>
-                        <div style={styles.divider} />
-                    </div>
-                </div>
-
-                <div style={styles.item}>
-                    <img src={pointIcon} style={styles.dot} alt="dot" />
-                    <div style={styles.itemContent}>
-                        <div style={styles.text}>
-                            Do not close this screen until payment is complete
-                        </div>
-                    </div>
-                </div>
-
-                {/* BUTTON */}
-                <button
-                    style={styles.button}
-                    onClick={handleSendPrompt}
-                    disabled={loading}
-                >
-                    <div style={{ opacity: loading ? 0.2 : 1 }}>
-                        Send Prompt
-                    </div>
-
-                    {loading && (
-                        <div
-                            className="sk-flow"
-                            style={{
-                                "--sk-color": "#fff",
-                                "--sk-size": "18px",
-                                position: "absolute",
-                            }}
-                        >
-                            <div className="sk-flow-dot"></div>
-                            <div className="sk-flow-dot"></div>
-                            <div className="sk-flow-dot"></div>
-                        </div>
-                    )}
-                </button>
-
-            </div>
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap');
+        .confirm-screen { min-height:100vh; background:#0a0a0f; padding:16px; box-sizing:border-box; font-family:'DM Sans',sans-serif; position:relative; overflow:hidden; }
+        .confirm-screen::before { content:''; position:absolute; top:-60px; right:-60px; width:260px; height:260px; background:radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%); pointer-events:none; }
+        .confirm-header { display:grid; grid-template-columns:40px 1fr 40px; align-items:center; height:48px; margin-bottom:20px; position:relative; z-index:1; }
+        .confirm-back { width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius:12px; cursor:pointer; }
+        .confirm-back img { width:20px; height:20px; filter:invert(1); transform:rotate(90deg); }
+        .confirm-nav-title { text-align:center; font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:#f1f1f5; margin:0; }
+        .confirm-card { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:20px; padding:20px; position:relative; z-index:1; }
+        .confirm-step { display:flex; gap:12px; margin-bottom:16px; }
+        .confirm-dot-wrap { padding-top:2px; }
+        .confirm-dot { width:8px; height:8px; border-radius:50%; background:#8b5cf6; box-shadow:0 0 6px rgba(139,92,246,0.6); margin-top:4px; flex-shrink:0; }
+        .confirm-step-text { font-size:14px; color:rgba(255,255,255,0.55); line-height:1.6; flex:1; }
+        .confirm-hdivider { height:1px; background:rgba(255,255,255,0.05); margin:4px 0 16px; }
+        .confirm-btn { margin-top:8px; width:100%; padding:16px; background:linear-gradient(135deg, #22c55e, #16a34a); color:#fff; border:none; border-radius:14px; font-family:'DM Sans',sans-serif; font-size:16px; font-weight:500; cursor:pointer; position:relative; display:flex; justify-content:center; align-items:center; transition:opacity 0.2s; }
+        .confirm-btn:disabled { opacity:0.7; cursor:not-allowed; }
+      `}</style>
+      <div className="confirm-screen">
+        <div className="confirm-header">
+          <div className="confirm-back" onClick={() => navigate("/home")}>
+            <img src={backIcon} alt="back" />
+          </div>
+          <h2 className="confirm-nav-title">Authorize Payment</h2>
+          <div />
         </div>
-    );
+
+        <div className="confirm-card">
+          {steps.map((step, i) => (
+            <div key={i}>
+              <div className="confirm-step">
+                <div className="confirm-dot-wrap">
+                  <div className="confirm-dot" />
+                </div>
+                <div className="confirm-step-text">{step}</div>
+              </div>
+              {i < steps.length - 1 && <div className="confirm-hdivider" />}
+            </div>
+          ))}
+
+          <button className="confirm-btn" onClick={handleSendPrompt} disabled={loading}>
+            <span style={{ opacity: loading ? 0 : 1 }}>Send Prompt</span>
+            {loading && (
+              <div className="sk-flow" style={{ "--sk-color": "#fff", "--sk-size": "18px", position: "absolute" }}>
+                <div className="sk-flow-dot" /><div className="sk-flow-dot" /><div className="sk-flow-dot" />
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
+    </>
+  );
 }
-
-const styles = {
-    container: {
-        minHeight: "100vh",
-        background: "#fff",
-        padding: 16,
-        fontFamily: "Arial",
-        boxSizing: "border-box",
-    },
-
-    header: {
-        display: "grid",
-        gridTemplateColumns: "40px 1fr 40px",
-        alignItems: "center",
-        marginBottom: 16,
-    },
-
-    backWrap: {
-        width: 40,
-        height: 40,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-    },
-
-    backIcon: {
-        width: 22,
-        height: 22,
-        transform: "rotate(90deg)",
-    },
-
-    title: {
-        textAlign: "center",
-        fontSize: 17,
-        fontWeight: "bold",
-        margin: 0,
-        color: "#7d7d7dff",
-    },
-
-    card: {
-        background: "#fff",
-        borderRadius: 16,
-        padding: 16,
-        boxShadow: "0px 2px 10px rgba(0,0,0,0.08)",
-    },
-
-    item: {
-        display: "flex",
-        gap: 10,
-        marginBottom: 12,
-    },
-
-    dot: {
-        width: 18,
-        height: 18,
-        marginTop: 3,
-        transform: "rotate(90deg)",
-    },
-
-    itemContent: {
-        flex: 1,
-    },
-
-    text: {
-        fontSize: 14,
-        color: "#000",
-    },
-
-    divider: {
-        height: 1,
-        background: "#E6E6E6",
-        marginTop: 8,
-    },
-
-    button: {
-        marginTop: 20,
-        width: "100%",
-        padding: 16,
-        background: "#369E47",
-        color: "#fff",
-        border: "none",
-        borderRadius: 12,
-        fontSize: 16,
-        cursor: "pointer",
-        position: "relative",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-};

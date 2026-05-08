@@ -1,72 +1,117 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import MinutesCard from "../card/MinutesCard";
-import cancelIcon from "../../../assets/icons/cancel-vector.svg"; // 👈 reuse or replace with close icon
+import cancelIcon from "../../../assets/icons/cancel-vector.svg";
 
 export default function MinutesBottomSheet({ open, onClose }) {
   const navigate = useNavigate();
 
-  if (!open) return null;
+  // Prevent body scroll when sheet is open
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
 
   const minutesData = [
-    { id: 1, minutes: 35, price: 100 },
-    { id: 2, minutes: 50, price: 150 },
-    { id: 3, minutes: 70, price: 200 },
+    { id: 1, minutes: 35,  price: 100 },
+    { id: 2, minutes: 50,  price: 150 },
+    { id: 3, minutes: 70,  price: 200 },
     { id: 4, minutes: 100, price: 250 },
     { id: 5, minutes: 130, price: 300 },
-    { id: 6, minutes: 160, price: 350 },
+    { id: 6, minutes: 160, price: 1 },
   ];
 
   const handleSelect = (item) => {
     onClose();
-
     navigate("/checkout", {
-      state: {
-        minutes: item.minutes,
-        amount: item.price,
-      },
+      state: { minutes: item.minutes, amount: item.price },
     });
   };
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
-        {/* HEADER */}
-        <div style={styles.header}>
-          <h3 style={styles.title}>Buy Minutes</h3>
+        .bs-overlay {
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.25s ease;
+        }
+        .bs-overlay.open {
+          opacity: 1;
+          pointer-events: all;
+        }
+        .bs-sheet {
+          transform: translateY(100%);
+          transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .bs-overlay.open .bs-sheet {
+          transform: translateY(0);
+        }
+        .bs-close-btn {
+          transition: background 0.15s ease, transform 0.15s ease;
+        }
+        .bs-close-btn:active {
+          transform: scale(0.9);
+          background: #e5e5e5 !important;
+        }
+      `}</style>
 
-          {/* ❌ CLOSE ICON */}
-          <button style={styles.closeBtn} onClick={onClose}>
-            <img src={cancelIcon} alt="close" style={styles.icon} />
-          </button>
-        </div>
+      <div
+        className={`bs-overlay ${open ? "open" : ""}`}
+        style={styles.overlay}
+        onClick={onClose}
+      >
+        <div
+          className="bs-sheet"
+          style={styles.sheet}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* DRAG HANDLE */}
+          <div style={styles.dragHandle} />
 
-        {/* GRID */}
-        <div style={styles.grid}>
-          {minutesData.map((item) => (
-            <div key={item.id} onClick={() => handleSelect(item)}>
-              <MinutesCard
-                minutes={`${item.minutes} Mins`}
-                price={`Ksh ${item.price}`}
-                showHot={item.id == 1 ? true : false}
-              />
+          {/* HEADER */}
+          <div style={styles.header}>
+            <div>
+              <h3 style={styles.title}>Buy Minutes</h3>
+              <p style={styles.subtitle}>Choose a plan that works for you</p>
             </div>
-          ))}
-        </div>
+            <button className="bs-close-btn" style={styles.closeBtn} onClick={onClose}>
+              <img src={cancelIcon} alt="close" style={styles.icon} />
+            </button>
+          </div>
 
+          {/* DIVIDER */}
+          <div style={styles.divider} />
+
+          {/* GRID */}
+          <div style={styles.grid}>
+            {minutesData.map((item) => (
+              <div key={item.id} onClick={() => handleSelect(item)}>
+                <MinutesCard
+                  minutes={`${item.minutes} Mins`}
+                  price={`Ksh ${item.price}`}
+                  showHot={item.id === 1}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* FOOTER NOTE */}
+          <p style={styles.footerNote}>Minutes never expire · Secure checkout</p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 const styles = {
   overlay: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    inset: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    backdropFilter: "blur(3px)",
     display: "flex",
     alignItems: "flex-end",
     justifyContent: "center",
@@ -75,53 +120,88 @@ const styles = {
 
   sheet: {
     width: "100%",
-    maxHeight: "80vh",
-    backgroundColor: "#fff",
-    borderTopLeftRadius: "16px",
-    borderTopRightRadius: "16px",
-    padding: "12px 8px 20px",
+    maxWidth: "480px",
+    maxHeight: "82vh",
+    backgroundColor: "#FAFAFA",
+    borderTopLeftRadius: "24px",
+    borderTopRightRadius: "24px",
+    padding: "0 16px 28px",
     overflowY: "auto",
+    boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
+  },
+
+  dragHandle: {
+    width: "40px",
+    height: "4px",
+    backgroundColor: "#D1D1D1",
+    borderRadius: "100px",
+    margin: "12px auto 0",
   },
 
   header: {
-    position: "relative",
-    padding: "8px",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    padding: "20px 4px 0",
+  },
+
+  title: {
+    fontSize: "20px",
+    fontWeight: "800",
+    color: "#111",
+    margin: 0,
+    fontFamily: "'DM Sans', sans-serif",
+    letterSpacing: "-0.3px",
+  },
+
+  subtitle: {
+    fontSize: "13px",
+    color: "#888",
+    margin: "3px 0 0",
+    fontFamily: "'DM Sans', sans-serif",
+    fontWeight: "500",
+  },
+
+  closeBtn: {
+    width: "36px",
+    height: "36px",
+    flexShrink: 0,
+    marginTop: "2px",
+    border: "none",
+    background: "#EBEBEB",
+    borderRadius: "50%",
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
 
-  title: {
-    fontSize: "17px",
-    fontWeight: "bold",
-    margin: 0,
+  icon: {
+    width: "16px",
+    height: "16px",
+    opacity: 0.65,
   },
 
-  closeBtn: {
-  position: "absolute",
-  right: "10px",
-  top: "6px",
-  width: "40px",        // ⬆️ bigger touch area
-  height: "40px",
-  border: "none",
-  background: "#F2F2F2", // optional: subtle background
-  borderRadius: "50%",   // makes it look like a real button
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-icon: {
-  width: "22px",  // ⬆️ bigger icon
-  height: "22px",
-  opacity: 0.8,
-},
+  divider: {
+    height: "1px",
+    backgroundColor: "#EBEBEB",
+    margin: "16px 0 4px",
+  },
 
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "8px",
+    gap: "10px",
     marginTop: "8px",
+  },
+
+  footerNote: {
+    textAlign: "center",
+    fontSize: "11px",
+    color: "#ABABAB",
+    marginTop: "16px",
+    fontFamily: "'DM Sans', sans-serif",
+    fontWeight: "500",
+    letterSpacing: "0.1px",
   },
 };

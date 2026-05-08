@@ -1,236 +1,320 @@
 import React, { useEffect, useState } from "react";
 
-import answerIcon from "../assets/icons/accept-vector.svg";
-import rejectIcon from "../assets/icons/reject-vector.svg";
-import "spinkit/spinkit.min.css";
-
-export default function CallOverlay({
-  visible,
-  name,
-  profileUrl,
-  onAnswer,
-  onReject,
-}) {
+export default function CallOverlay({ visible, name, profileUrl, onAnswer, onReject }) {
   const [locked, setLocked] = useState(false);
-
-  // ✅ IMAGE LOAD STATE (NEW FIX)
   const [loaded, setLoaded] = useState(false);
 
-  // ⏱️ AUTO DISMISS AFTER 30 SECONDS
   useEffect(() => {
     if (!visible) return;
-    const timer = setTimeout(() => {
-      onReject?.();
-    }, 30000);
+    const timer = setTimeout(() => onReject?.(), 30000);
     return () => clearTimeout(timer);
   }, [visible, onReject]);
 
-  // reset state when closed
   useEffect(() => {
     if (!visible) {
       setLocked(false);
-      setLoaded(false); // ✅ reset image state
+      setLoaded(false);
     }
   }, [visible]);
 
-  // ✅ ANSWER
   const handleAnswer = () => {
     if (locked) return;
     setLocked(true);
     onAnswer?.();
   };
 
-  // ❌ REJECT
-  const handleReject = () => {
-    onReject?.();
-  };
+  const initials = name
+    ? name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "??";
 
   if (!visible) return null;
 
   return (
-    <div style={styles.overlay}>
+    <div style={styles.screen}>
+      <style>{keyframes}</style>
 
-      {/* CENTER */}
-      <div style={styles.center}>
-        <div style={styles.avatarWrapper}>
+      {/* Background glow */}
+      <div style={styles.bgGlow} />
 
-          {/* 🔥 SMOOTH LOAD FIX */}
-          {!loaded && (
-            <div className="sk-pulse" style={styles.pulseSpinner} />
+     
+
+      {/* Avatar + caller info */}
+      <div style={styles.content}>
+        <div style={styles.avatarRing}>
+          <div style={{ ...styles.pulseRing, animationDelay: "0s" }} />
+          <div style={{ ...styles.pulseRing, animationDelay: "0.6s" }} />
+
+          {profileUrl ? (
+            <>
+              {!loaded && <div style={styles.avatarInitials}>{initials}</div>}
+              <img
+                src={profileUrl}
+                alt={name}
+                style={{
+                  ...styles.avatarImg,
+                  opacity: loaded ? 1 : 0,
+                  position: loaded ? "relative" : "absolute",
+                  transform: loaded ? "scale(1)" : "scale(1.05)",
+                  transition: "opacity 0.3s ease, transform 0.3s ease",
+                }}
+                onLoad={() => setLoaded(true)}
+              />
+            </>
+          ) : (
+            <div style={styles.avatarInitials}>{initials}</div>
           )}
-
-          <img
-            src={profileUrl}
-            alt="profile"
-            style={{
-              ...styles.avatar,
-              opacity: loaded ? 1 : 0,
-              transform: loaded ? "scale(1)" : "scale(1.05)",
-              transition: "all 0.3s ease",
-            }}
-            onLoad={() => setLoaded(true)}
-          />
         </div>
 
-        <div style={styles.name}>{name}</div>
-        <div style={styles.callingText}>Incoming video call...</div>
+        <p style={styles.callerName}>{name ?? "Unknown"}</p>
+        <p style={styles.callerInfo}>Incoming video call</p>
+
+        <div style={styles.statusRow}>
+          <div style={styles.dot} />
+          <span style={styles.callingText}>Ringing…</span>
+        </div>
       </div>
 
-      {/* ACTIONS */}
-      <div style={styles.actions}>
-
-        {/* REJECT */}
-        <div style={styles.actionItem} onClick={handleReject}>
-          <div style={styles.buttonWrapper}>
-            <div className="sk-bounce" style={styles.spinner}>
-              <div className="sk-bounce-dot" style={{ backgroundColor: "#E53935" }} />
-              <div className="sk-bounce-dot" style={{ backgroundColor: "#E53935" }} />
+      {/* Action buttons */}
+      <div style={styles.footer}>
+        <div style={styles.actionRow}>
+          {/* Reject */}
+          <div style={styles.actionItem} onClick={onReject}>
+            <div style={styles.btnWrap}>
+              <div style={{ ...styles.ripple, background: "rgba(229,62,62,0.18)", animation: "ripple 2s ease-out infinite" }} />
+              <div style={{ ...styles.circle, background: "#e53e3e", animation: "ringGlowRed 2s ease-out infinite" }}>
+                <EndCallIcon />
+              </div>
             </div>
-            <div style={{ ...styles.circle, backgroundColor: "#E53935" }}>
-              <img
-                src={rejectIcon}
-                alt="reject"
-                style={{ ...styles.icon, transform: "rotate(136deg)" }}
-              />
-            </div>
+            <span style={styles.label}>Decline</span>
           </div>
-          <span style={styles.label}>Reject</span>
+
+          {/* Answer */}
+          <div style={styles.actionItem} onClick={handleAnswer}>
+            <div style={styles.btnWrap}>
+              <div style={{ ...styles.ripple, background: "rgba(52,211,153,0.18)", animation: "ripple 2s ease-out infinite 0.3s" }} />
+              <div style={{ ...styles.circle, background: "#16a34a", animation: "ringGlowGreen 2s ease-out infinite" }}>
+                <AnswerCallIcon />
+              </div>
+            </div>
+            <span style={styles.label}>Answer</span>
+          </div>
         </div>
 
-        {/* ANSWER */}
-        <div style={styles.actionItem} onClick={handleAnswer}>
-          <div style={styles.buttonWrapper}>
-            <div className="sk-bounce" style={styles.spinner}>
-              <div className="sk-bounce-dot" style={{ backgroundColor: "#43A047" }} />
-              <div className="sk-bounce-dot" style={{ backgroundColor: "#43A047" }} />
-            </div>
-            <div style={{ ...styles.circle, backgroundColor: "#43A047" }}>
-              <img src={answerIcon} alt="answer" style={styles.icon} />
-            </div>
-          </div>
-          <span style={styles.label}>Answer</span>
-        </div>
-
+        <p style={styles.swipeHint}>swipe up to message</p>
       </div>
     </div>
   );
 }
 
+function EndCallIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ transform: "rotate(135deg)" }}>
+      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.1 2.22 2 2 0 012.11 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91A16 16 0 0016.09 17.91l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+    </svg>
+  );
+}
+
+function AnswerCallIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8 19.79 19.79 0 01.1 2.22 2 2 0 012.11 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91A16 16 0 0016.09 17.91l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+    </svg>
+  );
+}
+
+const keyframes = `
+  @keyframes pulse {
+    0% { transform: scale(0.92); opacity: 1; }
+    100% { transform: scale(1.45); opacity: 0; }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  @keyframes ripple {
+    0% { transform: scale(0.85); opacity: 0.8; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+  @keyframes ringGlowRed {
+    0% { box-shadow: 0 0 0 0 rgba(229,62,62,0.45); }
+    70% { box-shadow: 0 0 0 12px rgba(229,62,62,0); }
+    100% { box-shadow: 0 0 0 0 rgba(229,62,62,0); }
+  }
+  @keyframes ringGlowGreen {
+    0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.45); }
+    70% { box-shadow: 0 0 0 12px rgba(22,163,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+  }
+`;
+
 const styles = {
-  overlay: {
+  screen: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100vw",
-    height: "100vh",
-    backgroundColor: "#6A4FB3",
-    zIndex: 9999,
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#0d0d0d",
+    display: "flex",
+    flexDirection: "column",
+    fontFamily: "'DM Sans', -apple-system, sans-serif",
+    zIndex: 999999,
     overflow: "hidden",
   },
-
-  center: {
+  bgGlow: {
     position: "absolute",
-    top: "12px",
-    left: "50%",
-    transform: "translateX(-50%)",
+    inset: 0,
+    background: "radial-gradient(ellipse 320px 320px at 50% 38%, #1a1a3a 0%, #0d0d0d 70%)",
+    zIndex: 0,
+  },
+  statusBar: {
+    position: "relative",
+    zIndex: 1,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 22px 0",
+  },
+  statusText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: "0.04em",
+  },
+  content: {
+    position: "relative",
+    zIndex: 1,
+    flex: 1,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: "10px",
+    justifyContent: "center",
   },
-
-  avatarWrapper: {
-    width: 220,
-    height: 220,
+  avatarRing: {
     position: "relative",
+    width: 120,
+    height: 120,
+    marginBottom: 28,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
-
-  pulseSpinner: {
+  pulseRing: {
     position: "absolute",
-    width: "320px",
-    height: "320px",
-    transform: "scale(1.3)",
-    opacity: 0.5,
-    zIndex: 1,
+    inset: -18,
+    borderRadius: "50%",
+    border: "1.5px solid rgba(139,92,246,0.3)",
+    animation: "pulse 2s ease-out infinite",
   },
-
-  avatar: {
-    width: "170px",
-    height: "170px",
+  avatarImg: {
+    width: 120,
+    height: 120,
     borderRadius: "50%",
     objectFit: "cover",
-    border: "3px solid #7D5CD1",
+    border: "2px solid rgba(139,92,246,0.5)",
     zIndex: 2,
   },
-
-  name: {
-    color: "#fff",
-    fontSize: "20px",
-    fontWeight: "bold",
-  },
-
-  callingText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: "14px",
-  },
-
-  actions: {
-    position: "absolute",
-    bottom: "40px",
-    left: 0,
-    right: 0,
+  avatarInitials: {
+    width: 120,
+    height: 120,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #2e1e5a, #1a0f38)",
+    border: "2px solid rgba(139,92,246,0.5)",
     display: "flex",
-    justifyContent: "space-between",
-    padding: "0 40px",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 34,
+    fontWeight: 300,
+    color: "rgba(255,255,255,0.85)",
+    zIndex: 2,
   },
-
+  callerName: {
+    fontSize: 26,
+    fontWeight: 500,
+    color: "#fff",
+    letterSpacing: "-0.5px",
+    margin: "0 0 6px",
+  },
+  callerInfo: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    margin: 0,
+  },
+  statusRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 12,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: "#a78bfa",
+    animation: "blink 1.5s ease-in-out infinite",
+  },
+  callingText: {
+    fontSize: 13,
+    color: "#a78bfa",
+    letterSpacing: "0.06em",
+  },
+  footer: {
+    position: "relative",
+    zIndex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 20,
+    paddingBottom: 52,
+  },
+  actionRow: {
+    display: "flex",
+    gap: 80,
+    alignItems: "center",
+  },
   actionItem: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     cursor: "pointer",
+    gap: 8,
   },
-
-  buttonWrapper: {
+  btnWrap: {
     position: "relative",
-    width: "80px",
-    height: "80px",
+    width: 72,
+    height: 72,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
-
-  spinner: {
+  ripple: {
     position: "absolute",
-    width: "110px",
-    height: "110px",
-    opacity: 0.6,
-    zIndex: 1,
+    inset: 0,
+    borderRadius: "50%",
   },
-
   circle: {
-    width: "80px",
-    height: "80px",
+    width: 72,
+    height: 72,
     borderRadius: "50%",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
     zIndex: 2,
   },
-
-  icon: {
-    width: "30px",
-    height: "30px",
-    objectFit: "contain",
-    filter: "brightness(0) invert(1)",
-  },
-
   label: {
-    marginTop: "8px",
-    color: "#fff",
-    fontSize: "14px",
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    letterSpacing: "0.04em",
+  },
+  swipeHint: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.18)",
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    margin: 0,
   },
 };
