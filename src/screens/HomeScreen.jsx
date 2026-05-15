@@ -20,11 +20,14 @@ export default function HomeScreen() {
   const [popup, setPopup] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Ref to track outgoing call state inside async closures / timeouts
   const outgoingCallRef = useRef(null);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
+      if (hasFetchedRef.current) return;
+      hasFetchedRef.current = true;
+
       const q = query(collection(db, "users"), where("gender", "==", "F"));
       const snapshot = await getDocs(q);
 
@@ -46,11 +49,34 @@ export default function HomeScreen() {
       setUsers(shuffled);
 
       if (shuffled.length > 0) {
-        const random = shuffled[Math.floor(Math.random() * shuffled.length)];
+        const storedValue = localStorage.getItem("hasSeenIncomingCall");
+        const isFirstTime = storedValue !== "true";
+
+        console.log("[HomeScreen] localStorage hasSeenIncomingCall:", storedValue);
+        console.log("[HomeScreen] isFirstTime:", isFirstTime);
+
+        let callerUser;
+
+        if (isFirstTime) {
+          const specificUser = usersData.find((u) => u.id === "7VvYXqXb7QmRAKC2ph7D");
+          console.log("[HomeScreen] Looking for specific user, found:", specificUser ?? "not found — using random");
+          callerUser = specificUser ?? shuffled[Math.floor(Math.random() * shuffled.length)];
+          localStorage.setItem("hasSeenIncomingCall", "true");
+          console.log("[HomeScreen] Set hasSeenIncomingCall = true in localStorage");
+        } else {
+          callerUser = shuffled[Math.floor(Math.random() * shuffled.length)];
+          console.log("[HomeScreen] Not first time, picked random caller:", callerUser?.name);
+        }
+
+        console.log("[HomeScreen] Final callerUser:", callerUser?.name, callerUser?.id);
+
         setTimeout(() => {
-          // Only show incoming call if there's no active outgoing call
+          console.log("[HomeScreen] setTimeout fired. outgoingCallRef.current:", outgoingCallRef.current);
           if (!outgoingCallRef.current) {
-            setCallUser(random);
+            console.log("[HomeScreen] Setting callUser to:", callerUser?.name);
+            setCallUser(callerUser);
+          } else {
+            console.log("[HomeScreen] Skipping incoming call — outgoing call is active");
           }
         }, 3000);
       }
@@ -76,7 +102,6 @@ export default function HomeScreen() {
         return;
       }
 
-      // Clear any incoming call before starting outgoing call
       setCallUser(null);
       outgoingCallRef.current = user;
       setOutgoingCallUser(user);
@@ -86,17 +111,17 @@ export default function HomeScreen() {
   };
 
   const handleAnswer = () => {
-  setActiveCallUser(callUser);
-  setCallUser(null);
-  setVideoCallVisible(true);
-};
+    setActiveCallUser(callUser);
+    setCallUser(null);
+    setVideoCallVisible(true);
+  };
 
   const handleReject = () => {
     setCallUser(null);
   };
 
   const handleEndOutgoingCall = () => {
-    outgoingCallRef.current = null; // Clear the ref when outgoing call ends
+    outgoingCallRef.current = null;
     setActiveCallUser(outgoingCallUser);
     setOutgoingCallUser(null);
     setVideoCallVisible(true);
@@ -361,7 +386,6 @@ export default function HomeScreen() {
 
         <MinutesBottomSheet open={open} onClose={() => setOpen(false)} />
 
-        {/* Incoming call: hidden when outgoing call is active */}
         <CallOverlay
           visible={!!callUser && !outgoingCallUser}
           name={callUser?.name}
@@ -370,7 +394,6 @@ export default function HomeScreen() {
           onReject={handleReject}
         />
 
-        {/* Uses the active caller's remoteVideoUrl */}
         <VideoCallScreen
           visible={videoCallVisible}
           onEnd={handleEndVideoCall}
