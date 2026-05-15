@@ -4,11 +4,6 @@ import { getAuth } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
-const NAMES = [
-  "Liam", "Noah", "James", "Oliver", "Elijah",
-  "William", "Henry", "Lucas", "Benjamin", "Theodore",
-];
-
 const STORAGE_KEY = "profile_name";
 
 export default function ProfileScreen() {
@@ -22,9 +17,10 @@ export default function ProfileScreen() {
     if (savedName) {
       setName(savedName);
     } else {
-      const randomName = NAMES[Math.floor(Math.random() * NAMES.length)];
-      localStorage.setItem(STORAGE_KEY, randomName);
-      setName(randomName);
+      const randomId = Math.floor(1000 + Math.random() * 9000);
+      const generated = `User_${randomId}`;
+      localStorage.setItem(STORAGE_KEY, generated);
+      setName(generated);
     }
   }, []);
 
@@ -52,7 +48,7 @@ export default function ProfileScreen() {
   }, []);
 
   const minutes = seconds !== null && seconds !== undefined
-    ? Math.floor(seconds / 60)
+    ? (seconds / 60).toFixed(1)
     : null;
 
   return (
@@ -94,7 +90,6 @@ export default function ProfileScreen() {
           pointer-events: none;
         }
 
-        /* TOP BAR */
         .top-bar {
           display: flex;
           justify-content: space-between;
@@ -133,7 +128,6 @@ export default function ProfileScreen() {
           stroke-linecap: round;
         }
 
-        /* HERO HEADER */
         .hero-header {
           display: flex;
           align-items: flex-end;
@@ -227,14 +221,12 @@ export default function ProfileScreen() {
           fill: #3DDB85;
         }
 
-        /* DIVIDER */
         .divider {
           height: 1px;
           background: rgba(255,255,255,0.06);
           margin-bottom: 24px;
         }
 
-        /* STATS ROW */
         .stats-row {
           display: grid;
           grid-template-columns: 1fr 1fr 1fr;
@@ -266,7 +258,6 @@ export default function ProfileScreen() {
           letter-spacing: 0.02em;
         }
 
-        /* MINUTES CARD */
         .minutes-card {
           background: linear-gradient(135deg, #5B3FD4 0%, #7C5CE8 50%, #9B7AF5 100%);
           border-radius: 24px;
@@ -390,7 +381,6 @@ export default function ProfileScreen() {
           stroke-linejoin: round;
         }
 
-        /* RECENT ACTIVITY */
         .section-title {
           font-family: 'Sora', sans-serif;
           font-size: 13px;
@@ -475,7 +465,6 @@ export default function ProfileScreen() {
           color: rgba(255,255,255,0.5);
         }
 
-        /* LOADING SHIMMER */
         @keyframes shimmer {
           0% { opacity: 0.4; }
           50% { opacity: 0.8; }
@@ -489,7 +478,6 @@ export default function ProfileScreen() {
 
       <div className="profile-screen">
 
-        {/* TOP BAR */}
         <div className="top-bar">
           <span className="top-bar-title">Profile</span>
           <div className="settings-btn">
@@ -500,7 +488,6 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        {/* HERO HEADER */}
         <div className="hero-header">
           <div className="avatar-wrapper">
             <div className="avatar-ring" />
@@ -531,7 +518,6 @@ export default function ProfileScreen() {
 
         <div className="divider" />
 
-        {/* STATS ROW */}
         <div className="stats-row">
           <div className="stat-card">
             <div className="stat-value">4.9</div>
@@ -551,7 +537,6 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        {/* MINUTES CARD */}
         <div className="minutes-card">
           <div className="minutes-card-top">
             <div>
@@ -583,7 +568,6 @@ export default function ProfileScreen() {
           </button>
         </div>
 
-        {/* RECENT ACTIVITY */}
         <div className="section-title">Recent Activity</div>
         <div className="activity-list">
           {[
@@ -629,7 +613,6 @@ export default function ProfileScreen() {
         </div>
       </div>
 
-      {/* BOTTOM SHEET */}
       <MinutesBottomSheet open={open} onClose={() => setOpen(false)} />
     </>
   );

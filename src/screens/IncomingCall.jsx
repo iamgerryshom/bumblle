@@ -33,10 +33,28 @@ export default function CallOverlay({ visible, name, profileUrl, onAnswer, onRej
     <div style={styles.screen}>
       <style>{keyframes}</style>
 
-      {/* Background glow */}
-      <div style={styles.bgGlow} />
+      {/* Blurred profile image background with dark gradient fallback while loading */}
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: "radial-gradient(ellipse 320px 320px at 50% 38%, #1a1a3a 0%, #0d0d0d 70%)",
+        backgroundImage: profileUrl ? `url(${profileUrl})` : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        filter: profileUrl ? "blur(6px) brightness(0.55) saturate(1.2)" : "none",
+        transform: profileUrl ? "scale(1.08)" : "none",
+        zIndex: 0,
+      }} />
 
-     
+      {/* Dark overlay */}
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: profileUrl
+          ? "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.5) 100%)"
+          : "none",
+        zIndex: 0,
+      }} />
 
       {/* Avatar + caller info */}
       <div style={styles.content}>
@@ -162,25 +180,6 @@ const styles = {
     fontFamily: "'DM Sans', -apple-system, sans-serif",
     zIndex: 999999,
     overflow: "hidden",
-  },
-  bgGlow: {
-    position: "absolute",
-    inset: 0,
-    background: "radial-gradient(ellipse 320px 320px at 50% 38%, #1a1a3a 0%, #0d0d0d 70%)",
-    zIndex: 0,
-  },
-  statusBar: {
-    position: "relative",
-    zIndex: 1,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "14px 22px 0",
-  },
-  statusText: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: "0.04em",
   },
   content: {
     position: "relative",

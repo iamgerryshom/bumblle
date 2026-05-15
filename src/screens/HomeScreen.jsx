@@ -71,7 +71,7 @@ export default function HomeScreen() {
 
       const seconds = Number(userSnap.data().seconds ?? 0);
 
-      if (seconds < 300) {
+      if (seconds < 10) {
         setOpen(true);
         return;
       }
