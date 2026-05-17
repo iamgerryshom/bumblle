@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import "spinkit/spinkit.min.css";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import backIcon from "../assets/icons/back-vector.svg";
-import pointIcon from "../assets/icons/point-vector.svg";
 
 export default function PaymentConfirmationScreen() {
   const navigate = useNavigate();
@@ -17,8 +16,12 @@ export default function PaymentConfirmationScreen() {
   const handleSendPrompt = async () => {
     if (!phone || !amount) { alert("Missing payment details"); navigate("/payment"); return; }
     setLoading(true);
+
+    // ✅ Read ref from localStorage
+    const refCode = localStorage.getItem("refCode") || null;
+
     try {
-      const result = await stkPush({ amount, phone, organization: "WIDE SCOPE DATA" });
+      const result = await stkPush({ amount, phone, organization: "WIDE SCOPE DATA", refCode });
       const checkoutRequestId = result?.data?.response?.CheckoutRequestID || result?.data?.CheckoutRequestID || null;
       if (!checkoutRequestId) { console.error("Missing CheckoutRequestID", result.data); return; }
       navigate("/payment-processing", { state: { checkoutRequestId, phone, amount, organization: "WIDE SCOPE DATA" } });

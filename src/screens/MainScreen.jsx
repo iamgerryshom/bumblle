@@ -16,6 +16,18 @@ export default function MainScreen() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
+ 
+
+
+  // ✅ Read ref from query param and persist to localStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get("ref");
+    if (refCode) {
+      localStorage.setItem("refCode", refCode);
+    }
+  }, []);
+
   useEffect(() => {
     const auth = getAuth();
 
@@ -51,7 +63,6 @@ export default function MainScreen() {
     }
   };
 
-  // 🔥 LOADING SCREEN (SPINNER)
   if (loading) {
     return (
       <div style={styles.loading}>
@@ -60,7 +71,6 @@ export default function MainScreen() {
             <div key={i} className="sk-circle-dot"></div>
           ))}
         </div>
-
         <p style={styles.loadingText}>Starting session...</p>
       </div>
     );
@@ -71,7 +81,6 @@ export default function MainScreen() {
       <div style={styles.screen}>
         {renderScreen()}
       </div>
-
       <BottomNav active={activeTab} setActive={setActiveTab} />
     </div>
   );
@@ -83,13 +92,11 @@ const styles = {
     backgroundColor: "#f5f5f5",
     overflow: "hidden",
   },
-
   screen: {
     paddingBottom: "70px",
     height: "100%",
     overflowY: "auto",
   },
-
   loading: {
     height: "100vh",
     display: "flex",
@@ -98,7 +105,6 @@ const styles = {
     alignItems: "center",
     backgroundColor: "#f5f5f5",
   },
-
   loadingText: {
     marginTop: "12px",
     fontSize: "14px",
