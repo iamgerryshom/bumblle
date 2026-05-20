@@ -7,6 +7,14 @@ import PaymentInformationConfirmationScreen from "./screens/PaymentInformationCo
 import PaymentProcessingScreen from "./screens/PaymentProcessingScreen";
 import HomeScreen from "./screens/HomeScreen";
 import VideoCallScreen from "./screens/VideoCallScreen";
+import PaypalPaymentScreen from "./screens/PaypalPaymentScreen";
+import EmployeeTransactionScreen from "./screens/EmployeeTransactionScreen";
+import CreateEmployeeScreen from "./screens/CreateEmployeeScreen";
+import EmployeesScreen from "./screens/EmployeesScreen";
+import PaymentSuccessScreen from "./screens/PaymentSuccessScreen";
+import PaymentFailedScreen from "./screens/PaymentFailedScreen";
+
+
 
 
 export default function App() {
@@ -31,6 +39,20 @@ export default function App() {
 
         {/* Payment Information Confirmation Screen */}
         <Route path="/payment-processing" element={<PaymentProcessingScreen />} />
+
+        {/* Payment Information Confirmation Screen */}
+        <Route path="/paypal-payment" element={<PaypalPaymentScreen />} />
+
+        <Route path="/employee-transaction" element={<EmployeeTransactionScreen />} />
+
+        <Route path="/create-employee" element={<CreateEmployeeScreen />} />
+
+        <Route path="/employees" element={<EmployeesScreen />} />
+
+        <Route path="/payment-failed" element={<PaymentFailedScreen />} />
+
+        <Route path="/payment-success" element={<PaymentSuccessScreen />} />
+
 
       </Routes>
     </BrowserRouter>
