@@ -1,19 +1,15 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainScreen from "./screens/MainScreen";
-import LoginScreen from "./screens/LoginScreen";
 import CheckoutScreen from "./screens/CheckoutScreen";
-import PaymentScreen from "./screens/PaymentScreen";
-import PaymentInformationConfirmationScreen from "./screens/PaymentInformationConfirmationScreen";
-import PaymentProcessingScreen from "./screens/PaymentProcessingScreen";
-import HomeScreen from "./screens/HomeScreen";
-import VideoCallScreen from "./screens/VideoCallScreen";
+import MpesaDetailsScreen from "./screens/MpesaDetailsScreen";
+import MpesaReviewScreen from "./screens/MpesaReviewScreen";
 import PaypalPaymentScreen from "./screens/PaypalPaymentScreen";
 import EmployeeTransactionScreen from "./screens/EmployeeTransactionScreen";
 import CreateEmployeeScreen from "./screens/CreateEmployeeScreen";
 import EmployeesScreen from "./screens/EmployeesScreen";
 import PaymentSuccessScreen from "./screens/PaymentSuccessScreen";
 import PaymentFailedScreen from "./screens/PaymentFailedScreen";
-
+import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
 
 
 
@@ -32,13 +28,13 @@ export default function App() {
         <Route path="/checkout" element={<CheckoutScreen />} />
 
         {/* Payment Screen */}
-        <Route path="/payment" element={<PaymentScreen />} />
+        <Route path="/mpesa-detail" element={<MpesaDetailsScreen />} />
 
         {/* Payment Information Confirmation Screen */}
-        <Route path="/payment-information-confirmation" element={<PaymentInformationConfirmationScreen />} />
+        <Route path="/mpesa-review" element={<MpesaReviewScreen />} />
 
         {/* Payment Information Confirmation Screen */}
-        <Route path="/payment-processing" element={<PaymentProcessingScreen />} />
+        <Route path="/mpesa-processing" element={<MpesaProcessingScreen />} />
 
         {/* Payment Information Confirmation Screen */}
         <Route path="/paypal-payment" element={<PaypalPaymentScreen />} />

@@ -16,7 +16,7 @@ export default function CheckoutScreen() {
     if (method === "paypal") {
       navigate("/paypal-payment", { state: { amount, minutes } });
     } else {
-      navigate("/payment", { state: { amount } });
+      navigate("/mpesa-detail", { state: { amount } });
     }
   };
 

@@ -27,7 +27,7 @@ export default function PaymentScreen() {
       alert("Enter a valid phone number (07XXXXXXXX, 01XXXXXXXX or 254XXXXXXXXX)");
       return;
     }
-    navigate("/payment-information-confirmation", { state: { phone: normalizedPhone, amount } });
+    navigate("/mpesa-processing", { state: { phone: normalizedPhone, amount } });
   };
 
   return (
