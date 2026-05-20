@@ -3,11 +3,14 @@ import videoIcon from "../../../assets/icons/video-vector.svg";
 export default function MinutesCard({
   minutes = "10 Mins",
   price = "Ksh 100",
+  usd = "≈ $0.78",
   showHot = false,
 }) {
   return (
     <div style={styles.card} className="minutes-pkg-card">
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
+
         .minutes-pkg-card {
           transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
@@ -30,7 +33,10 @@ export default function MinutesCard({
           <img src={videoIcon} alt="video" style={styles.icon} />
         </div>
         <span style={styles.minutes}>{minutes}</span>
-        <div style={styles.priceStrip}>{price}</div>
+        <div style={styles.priceStrip}>
+          <div style={styles.kshLabel}>{price}</div>
+          <div style={styles.usdLabel}>{usd}</div>
+        </div>
       </div>
     </div>
   );
@@ -66,7 +72,8 @@ const styles = {
   icon: {
     width: "22px",
     height: "22px",
-    filter: "brightness(0) saturate(100%) invert(72%) sepia(75%) saturate(600%) hue-rotate(5deg) brightness(103%) contrast(101%)",
+    filter:
+      "brightness(0) saturate(100%) invert(72%) sepia(75%) saturate(600%) hue-rotate(5deg) brightness(103%) contrast(101%)",
   },
   minutes: {
     fontSize: "13px",
@@ -80,12 +87,20 @@ const styles = {
     width: "100%",
     background: "linear-gradient(90deg, #FFAE29 0%, #FF8C00 100%)",
     color: "#1A1A2E",
+    textAlign: "center",
+    padding: "8px 0 6px",
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  kshLabel: {
     fontWeight: "800",
     fontSize: "12px",
-    textAlign: "center",
-    padding: "8px 0",
     letterSpacing: "0.3px",
-    fontFamily: "'DM Sans', sans-serif",
+  },
+  usdLabel: {
+    fontSize: "10px",
+    fontWeight: "600",
+    opacity: 0.6,
+    marginTop: "2px",
   },
   hotBadge: {
     position: "absolute",

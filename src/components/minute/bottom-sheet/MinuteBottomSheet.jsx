@@ -6,19 +6,20 @@ import cancelIcon from "../../../assets/icons/cancel-vector.svg";
 export default function MinutesBottomSheet({ open, onClose }) {
   const navigate = useNavigate();
 
-  // Prevent body scroll when sheet is open
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   const minutesData = [
-    { id: 1, minutes: 35,  price: 100 },
-    { id: 2, minutes: 50,  price: 150 },
-    { id: 3, minutes: 70,  price: 200 },
-    { id: 4, minutes: 100, price: 250 },
-    { id: 5, minutes: 130, price: 300 },
-    { id: 6, minutes: 160, price: 350 },
+    { id: 1, minutes: 35,  price: 100, usd: 0.78 },
+    { id: 2, minutes: 50,  price: 150, usd: 1.16 },
+    { id: 3, minutes: 70,  price: 200, usd: 1.55 },
+    { id: 4, minutes: 100, price: 250, usd: 1.94 },
+    { id: 5, minutes: 130, price: 300, usd: 2.32 },
+    { id: 6, minutes: 160, price: 350, usd: 2.71 },
   ];
 
   const handleSelect = (item) => {
@@ -92,6 +93,7 @@ export default function MinutesBottomSheet({ open, onClose }) {
                 <MinutesCard
                   minutes={`${item.minutes} Mins`}
                   price={`Ksh ${item.price}`}
+                  usd={`≈ $${item.usd.toFixed(2)}`}
                   showHot={item.id === 1}
                 />
               </div>
@@ -117,7 +119,6 @@ const styles = {
     justifyContent: "center",
     zIndex: 999,
   },
-
   sheet: {
     width: "100%",
     maxWidth: "480px",
@@ -129,7 +130,6 @@ const styles = {
     overflowY: "auto",
     boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
   },
-
   dragHandle: {
     width: "40px",
     height: "4px",
@@ -137,14 +137,12 @@ const styles = {
     borderRadius: "100px",
     margin: "12px auto 0",
   },
-
   header: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
     padding: "20px 4px 0",
   },
-
   title: {
     fontSize: "20px",
     fontWeight: "800",
@@ -153,7 +151,6 @@ const styles = {
     fontFamily: "'DM Sans', sans-serif",
     letterSpacing: "-0.3px",
   },
-
   subtitle: {
     fontSize: "13px",
     color: "#888",
@@ -161,7 +158,6 @@ const styles = {
     fontFamily: "'DM Sans', sans-serif",
     fontWeight: "500",
   },
-
   closeBtn: {
     width: "36px",
     height: "36px",
@@ -175,26 +171,22 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-
   icon: {
     width: "16px",
     height: "16px",
     opacity: 0.65,
   },
-
   divider: {
     height: "1px",
     backgroundColor: "#EBEBEB",
     margin: "16px 0 4px",
   },
-
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: "10px",
     marginTop: "8px",
   },
-
   footerNote: {
     textAlign: "center",
     fontSize: "11px",
