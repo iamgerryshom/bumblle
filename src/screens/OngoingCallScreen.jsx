@@ -6,7 +6,7 @@ import { db, auth } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
-export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
+export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl, remoteUser }) {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const callIdRef = useRef(null);
@@ -98,6 +98,15 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
 
         callIdRef.current = callId;
         setTimeLimit(seconds);
+
+        if (remoteUser?.id) {
+          const existing = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+          if (!existing.includes(remoteUser.id)) {
+            existing.push(remoteUser.id);
+            localStorage.setItem("blockedUserIds", JSON.stringify(existing));
+          }
+        }
+
         setReady(true);
       } catch (err) {
         console.error("Task scheduling error:", err);
@@ -154,11 +163,32 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
     video.loop = true;
     video.playsInline = true;
     video.muted = true;
+
+    let endTimer = null;
+
+    video.onloadedmetadata = () => {
+      console.log("Remote video duration:", video.duration, "seconds");
+      const duration = video.duration;
+      const endAt = duration - 7;
+
+      if (endAt > 0) {
+        endTimer = setTimeout(() => {
+          showToastAndEnd("Something went wrong");
+        }, endAt * 1000);
+      }
+    };
+
     video.load();
+
     video.play().then(() => {
       video.muted = false;
       video.volume = 1.0;
     }).catch((e) => console.log("Autoplay blocked:", e));
+
+    return () => {
+      video.onloadedmetadata = null;
+      if (endTimer) clearTimeout(endTimer);
+    };
   }, [visible, ready, remoteVideoUrl]);
 
   const toggleMute = () => {
@@ -224,26 +254,13 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
         }
       `}</style>
 
-      {/* Remote video — full screen */}
-      <video
-        ref={remoteVideoRef}
-        playsInline
-        style={styles.remoteVideo}
-      />
+      <video ref={remoteVideoRef} playsInline style={styles.remoteVideo} />
 
-      {/* Dark gradient overlays */}
       <div style={styles.topGradient} />
       <div style={styles.bottomGradient} />
 
-      {/* Self view */}
       <div style={styles.selfViewWrapper}>
-        <video
-          ref={localVideoRef}
-          autoPlay
-          muted
-          playsInline
-          style={styles.selfView}
-        />
+        <video ref={localVideoRef} autoPlay muted playsInline style={styles.selfView} />
         {videoOff && (
           <div style={styles.selfViewOff}>
             <span style={{ fontSize: 22 }}>🎥</span>
@@ -251,7 +268,6 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
         )}
       </div>
 
-      {/* Top bar — timer + status */}
       <div style={styles.topBar}>
         <div style={styles.liveChip}>
           <div style={styles.liveDot} />
@@ -262,11 +278,9 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
         </div>
       </div>
 
-      {/* Bottom controls */}
       <div style={styles.controls}>
         <div style={styles.btnRow}>
 
-          {/* Mute */}
           <button
             className="vc-ctrl-btn"
             style={{
@@ -276,28 +290,14 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
             }}
             onClick={toggleMute}
           >
-            <img
-              src={micIcon}
-              alt="mic"
-              style={{ ...styles.ctrlIcon, opacity: muted ? 0.4 : 1 }}
-            />
+            <img src={micIcon} alt="mic" style={{ ...styles.ctrlIcon, opacity: muted ? 0.4 : 1 }} />
             <span style={styles.ctrlLabel}>{muted ? "Unmute" : "Mute"}</span>
           </button>
 
-          {/* End call */}
-          <button
-            className="vc-end-btn vc-ctrl-btn"
-            style={styles.endBtn}
-            onClick={handleEnd}
-          >
-            <img
-              src={endIcon}
-              alt="end"
-              style={{ ...styles.ctrlIcon, width: 28, height: 28, transform: "rotate(136deg)" }}
-            />
+          <button className="vc-end-btn vc-ctrl-btn" style={styles.endBtn} onClick={handleEnd}>
+            <img src={endIcon} alt="end" style={{ ...styles.ctrlIcon, width: 28, height: 28, transform: "rotate(136deg)" }} />
           </button>
 
-          {/* Video toggle */}
           <button
             className="vc-ctrl-btn"
             style={{
@@ -307,11 +307,7 @@ export default function VideoCallScreen({ visible, onEnd, remoteVideoUrl }) {
             }}
             onClick={toggleVideo}
           >
-            <img
-              src={videoIcon}
-              alt="video"
-              style={{ ...styles.ctrlIcon, opacity: videoOff ? 0.4 : 1 }}
-            />
+            <img src={videoIcon} alt="video" style={{ ...styles.ctrlIcon, opacity: videoOff ? 0.4 : 1 }} />
             <span style={styles.ctrlLabel}>{videoOff ? "Show" : "Camera"}</span>
           </button>
 

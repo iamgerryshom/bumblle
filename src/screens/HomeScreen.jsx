@@ -3,8 +3,8 @@ import { useEffect, useState, useRef } from "react";
 import { db, auth } from "../firebase";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import MinutesBottomSheet from "../components/minute/bottom-sheet/MinuteBottomSheet";
-import CallOverlay from "../screens/IncomingCall";
-import VideoCallScreen from "../screens/VideoCallScreen";
+import IncomingCallScreen from "./IncomingCallScreen";
+import OngoingCallScreen from "./OngoingCallScreen";
 import OutgoingCallScreen from "../screens/OutgoingCallScreen";
 import "spinkit/spinkit.min.css";
 import settingIcon from "../assets/icons/setting_vector.svg";
@@ -51,32 +51,26 @@ export default function HomeScreen() {
       if (shuffled.length > 0) {
         const storedValue = localStorage.getItem("hasSeenIncomingCall");
         const isFirstTime = storedValue !== "true";
-
-        console.log("[HomeScreen] localStorage hasSeenIncomingCall:", storedValue);
-        console.log("[HomeScreen] isFirstTime:", isFirstTime);
+        const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+        const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
 
         let callerUser;
 
         if (isFirstTime) {
           const specificUser = usersData.find((u) => u.id === "7VvYXqXb7QmRAKC2ph7D");
-          console.log("[HomeScreen] Looking for specific user, found:", specificUser ?? "not found — using random");
-          callerUser = specificUser ?? shuffled[Math.floor(Math.random() * shuffled.length)];
+          callerUser = specificUser ?? availableUsers[Math.floor(Math.random() * availableUsers.length)];
           localStorage.setItem("hasSeenIncomingCall", "true");
-          console.log("[HomeScreen] Set hasSeenIncomingCall = true in localStorage");
         } else {
-          callerUser = shuffled[Math.floor(Math.random() * shuffled.length)];
-          console.log("[HomeScreen] Not first time, picked random caller:", callerUser?.name);
+          if (availableUsers.length === 0) {
+            setLoading(false);
+            return;
+          }
+          callerUser = availableUsers[Math.floor(Math.random() * availableUsers.length)];
         }
 
-        console.log("[HomeScreen] Final callerUser:", callerUser?.name, callerUser?.id);
-
         setTimeout(() => {
-          console.log("[HomeScreen] setTimeout fired. outgoingCallRef.current:", outgoingCallRef.current);
           if (!outgoingCallRef.current) {
-            console.log("[HomeScreen] Setting callUser to:", callerUser?.name);
             setCallUser(callerUser);
-          } else {
-            console.log("[HomeScreen] Skipping incoming call — outgoing call is active");
           }
         }, 3000);
       }
@@ -91,6 +85,13 @@ export default function HomeScreen() {
     try {
       const userId = auth.currentUser?.uid;
       if (!userId) return;
+
+      const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+      if (blockedIds.includes(user.id)) {
+        setToast("This user appears to be busy. Try again another time");
+        setTimeout(() => setToast(null), 2500);
+        return;
+      }
 
       const userSnap = await getDoc(doc(db, "users", userId));
       if (!userSnap.exists()) return;
@@ -386,7 +387,7 @@ export default function HomeScreen() {
 
         <MinutesBottomSheet open={open} onClose={() => setOpen(false)} />
 
-        <CallOverlay
+        <IncomingCallScreen
           visible={!!callUser && !outgoingCallUser}
           name={callUser?.name}
           profileUrl={callUser?.image}
@@ -394,11 +395,12 @@ export default function HomeScreen() {
           onReject={handleReject}
         />
 
-        <VideoCallScreen
-          visible={videoCallVisible}
-          onEnd={handleEndVideoCall}
-          remoteVideoUrl={activeCallUser?.remoteVideoUrl ?? null}
-        />
+        <OngoingCallScreen
+  visible={videoCallVisible}
+  onEnd={handleEndVideoCall}
+  remoteVideoUrl={activeCallUser?.remoteVideoUrl ?? null}
+  remoteUser={activeCallUser ?? null}
+/>
 
         {outgoingCallUser && (
           <OutgoingCallScreen

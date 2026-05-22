@@ -11,8 +11,6 @@ import PaymentSuccessScreen from "./screens/PaymentSuccessScreen";
 import PaymentFailedScreen from "./screens/PaymentFailedScreen";
 import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
 
-
-
 export default function App() {
   return (
     <BrowserRouter>
