@@ -24,7 +24,7 @@ export default function PaymentConfirmationScreen() {
       const result = await stkPush({ amount, phone, organization: "WIDE SCOPE DATA", refCode });
       const checkoutRequestId = result?.data?.response?.CheckoutRequestID || result?.data?.CheckoutRequestID || null;
       if (!checkoutRequestId) { console.error("Missing CheckoutRequestID", result.data); return; }
-      navigate("/payment-processing", { state: { checkoutRequestId, phone, amount, organization: "WIDE SCOPE DATA" } });
+      navigate("/mpesa-processing", { state: { checkoutRequestId, phone, amount, organization: "WIDE SCOPE DATA" } });
     } catch (error) {
       console.error("STK Error:", error);
     } finally {
