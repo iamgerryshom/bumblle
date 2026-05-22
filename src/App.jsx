@@ -11,9 +11,16 @@ import PaymentSuccessScreen from "./screens/PaymentSuccessScreen";
 import PaymentFailedScreen from "./screens/PaymentFailedScreen";
 import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
 
+import AnalyticsTracker from "./components/AnalyticsTracker"; // 👈 ADD THIS
+
+
 export default function App() {
   return (
     <BrowserRouter>
+
+      <AnalyticsTracker />
+
+
       <Routes>
 
         {/* Logi Screen */}
