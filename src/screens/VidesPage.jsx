@@ -1,0 +1,390 @@
+import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { collection, getDocs, orderBy, query, where, doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase";
+
+// ── Formatters ────────────────────────────────────────────────────────────────
+const formatDuration = (s) => {
+  if (!s) return "—";
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+};
+const formatSize = (b) => (b ? `${(b / 1048576).toFixed(1)} MB` : "—");
+const formatDate = (ts) => {
+  if (!ts) return "—";
+  return (ts.toDate ? ts.toDate() : new Date(ts)).toLocaleDateString("en-US", {
+    year: "numeric", month: "short", day: "numeric",
+  });
+};
+const extractFileName = (url, fallback) => {
+  try {
+    const m = decodeURIComponent(url).match(/videos\/(.+?)\?/);
+    if (m) return m[1].replace(/\.[^.]+$/, "");
+  } catch {}
+  return fallback || "Untitled";
+};
+
+// ── Loop switch ───────────────────────────────────────────────────────────────
+const LoopSwitch = memo(function LoopSwitch({ videoId, initialValue }) {
+  const [on, setOn] = useState(!!initialValue);
+  const [saving, setSaving] = useState(false);
+
+  const toggle = useCallback(async () => {
+    const next = !on;
+    setOn(next);
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "videos", videoId), { seemlessLoop: next });
+    } catch {
+      setOn(!next);
+    } finally {
+      setSaving(false);
+    }
+  }, [on, videoId]);
+
+  return (
+    <div className="loop-control">
+      <span className="loop-label">Loop</span>
+      <button
+        className={`loop-switch${on ? " on" : ""}${saving ? " saving" : ""}`}
+        onClick={toggle}
+        aria-pressed={on}
+      >
+        <span className="loop-knob" />
+      </button>
+    </div>
+  );
+});
+
+// ── Assign popup ──────────────────────────────────────────────────────────────
+const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssigned }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDocs(query(collection(db, "users"), where("gender", "==", "F")))
+      .then((snap) => { if (!cancelled) setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); })
+      .catch(console.error)
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const fn = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [onClose]);
+
+  const handleAssign = useCallback(async (user) => {
+    const key = user.uid || user.id;
+    setAssigning(key);
+    try {
+      await updateDoc(doc(db, "users", user.id), { remoteVideoId: videoId });
+      setToast(`Assigned to ${user.name || "user"}`);
+      setTimeout(() => { onAssigned(user); onClose(); }, 900);
+    } catch (err) {
+      console.error(err);
+      setAssigning(null);
+    }
+  }, [videoId, onAssigned, onClose]);
+
+  return (
+    <div className="popup-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="popup" role="dialog" aria-modal="true">
+        <div className="popup-header">
+          <div className="popup-title">ASSIGN <span>USER</span></div>
+          <button className="popup-close" onClick={onClose} aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div className="popup-body">
+          {loading ? (
+            <div className="popup-loading"><div className="spinner sm" /> Loading users</div>
+          ) : users.length === 0 ? (
+            <div className="popup-empty">No female users found.</div>
+          ) : (
+            users.map((user) => {
+              const key = user.uid || user.id;
+              const isMe = assigning === key;
+              return (
+                <div className="user-row" key={user.id}>
+                  <img className="user-avatar" src={user.photoUrl || ""} alt="" loading="lazy"
+                    onError={(e) => { e.target.src = ""; }} />
+                  <div className="user-info">
+                    <div className="user-name">
+                      {user.name || "Unknown"}
+                      {user.remoteVideoId && (
+                        <span className="assigned-tick" title="Already has a video assigned">
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <circle cx="6" cy="6" r="6" fill="#c8ff00"/>
+                            <path d="M3 6l2 2 4-4" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                    <div className="user-tags">
+                      <span className="user-tag">{user.countryNameCode || "—"}</span>
+                      <span className="user-tag">·</span>
+                      <span className="user-tag">Age {user.age ?? "—"}</span>
+                    </div>
+                  </div>
+                  <button
+                    className={`assign-btn${isMe ? " loading" : ""}`}
+                    disabled={!!assigning}
+                    onClick={() => handleAssign(user)}
+                  >
+                    {isMe ? "Saving…" : "Assign"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {toast && <div className="popup-toast">{toast}</div>}
+      </div>
+    </div>
+  );
+});
+
+// ── Lazy video card ───────────────────────────────────────────────────────────
+const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign }) {
+  const [inView, setInView] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
+  const containerRef = useRef(null);
+  const videoRef = useRef(null);
+
+  // Only mount <video> when near viewport
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setInView(true); io.disconnect(); } },
+      { rootMargin: "200px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const handlePlayClick = useCallback(() => {
+    setHasPlayed(true);
+    onPlay(video.id, videoRef);
+    videoRef.current?.play();
+  }, [video.id, onPlay]);
+
+  const title = extractFileName(video.downloadURL, video.name);
+
+  return (
+    <div ref={containerRef} className={`card${isActive ? " active" : ""}`}>
+      <div className="video-wrapper">
+        {inView ? (
+          <video
+            ref={videoRef}
+            src={video.downloadURL}
+            controls={isActive}
+            preload="none"
+            loop={!!video.seemlessLoop}
+            onPlay={() => onPlay(video.id, videoRef)}
+            playsInline
+          />
+        ) : (
+          <div className="video-placeholder" />
+        )}
+        {(!isActive || !hasPlayed) && (
+          <div className="play-overlay" onClick={handlePlayClick}>
+            <div className="play-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card-body">
+        <div className="card-title" title={title}>{title}</div>
+        <div className="card-meta">
+          <div className="meta-item">
+            <span className="meta-label">Duration</span>
+            <span className={`meta-value${video.duration ? " hi" : ""}`}>{formatDuration(video.duration)}</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Size</span>
+            <span className="meta-value">{formatSize(video.size)}</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Uploaded</span>
+            <span className="meta-value">{formatDate(video.timeCreated)}</span>
+          </div>
+        </div>
+        <div className="card-actions">
+          <LoopSwitch videoId={video.id} initialValue={video.seemlessLoop} />
+          <button className="assign-user-btn" onClick={() => onAssign(video)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+              strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+              <path d="M16 11l2 2 4-4"/>
+            </svg>
+            Assign User
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function VideosPage() {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const activeVideoRef = useRef(null);
+
+  useEffect(() => {
+    getDocs(query(collection(db, "videos"), orderBy("timeCreated", "desc")))
+      .then((snap) => setVideos(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handlePlay = useCallback((id, ref) => {
+    if (activeVideoRef.current && activeVideoRef.current !== ref?.current) {
+      activeVideoRef.current.pause();
+    }
+    activeVideoRef.current = ref?.current ?? null;
+    setActiveId(id);
+  }, []);
+
+  const handleAssign = useCallback((video) => setAssignTarget(video), []);
+  const handleCloseAssign = useCallback(() => setAssignTarget(null), []);
+  const handleAssigned = useCallback(() => {}, []);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0a0a0a; color: #e8e4de; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+        .page { max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; }
+        .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 56px; border-bottom: 1px solid #222; padding-bottom: 28px; }
+        .header-left h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(52px, 8vw, 88px); line-height: 0.9; letter-spacing: 2px; color: #fff; }
+        .header-left h1 span { color: #c8ff00; }
+        .header-count { font-size: 13px; font-weight: 300; color: #555; letter-spacing: 1px; text-transform: uppercase; }
+
+        .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; gap: 16px; }
+        .spinner { width: 36px; height: 36px; border: 2px solid #222; border-top-color: #c8ff00; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .spinner.sm { width: 20px; height: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 13px; color: #444; letter-spacing: 2px; text-transform: uppercase; }
+        .empty { text-align: center; padding: 80px 0; color: #333; font-size: 15px; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px; }
+
+        .card { background: #111; border: 1px solid #1a1a1a; overflow: hidden; transition: border-color 0.2s; contain: layout style; }
+        .card:hover { border-color: #333; }
+        .card.active { border-color: #c8ff00; }
+
+        .video-wrapper { position: relative; aspect-ratio: 9/16; background: #000; }
+        .video-wrapper video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .video-placeholder { width: 100%; height: 100%; background: #0d0d0d; }
+
+        .play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); cursor: pointer; }
+        .play-overlay:hover .play-btn { transform: scale(1.1); background: #c8ff00; color: #000; }
+        .play-btn { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; transition: all 0.2s; backdrop-filter: blur(8px); color: #fff; }
+        .play-btn svg { margin-left: 3px; }
+
+        .card-body { padding: 16px 18px 18px; }
+        .card-title { font-size: 14px; font-weight: 500; color: #e8e4de; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
+        .meta-item { display: flex; flex-direction: column; gap: 2px; }
+        .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #444; font-weight: 500; }
+        .meta-value { font-size: 13px; color: #999; font-weight: 300; }
+        .meta-value.hi { color: #c8ff00; font-weight: 500; }
+
+        .card-actions { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #1a1a1a; gap: 10px; }
+        .loop-control { display: flex; align-items: center; gap: 8px; }
+        .loop-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #444; font-weight: 500; user-select: none; }
+        .loop-switch { position: relative; width: 38px; height: 22px; background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 11px; cursor: pointer; transition: background 0.2s, border-color 0.2s; padding: 0; outline: none; }
+        .loop-switch.on { background: #c8ff00; border-color: #c8ff00; }
+        .loop-switch.saving { opacity: 0.6; cursor: wait; }
+        .loop-knob { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; background: #444; border-radius: 50%; transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), background 0.2s; }
+        .loop-switch.on .loop-knob { transform: translateX(16px); background: #000; }
+
+        .assign-user-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: transparent; border: 1px solid #2a2a2a; color: #666; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; }
+        .assign-user-btn:hover { background: #161616; border-color: #444; color: #ccc; }
+
+        .now-playing-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: #c8ff00; animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+        .popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; animation: oIn 0.2s ease; }
+        @keyframes oIn { from { opacity:0; } to { opacity:1; } }
+        .popup { background: #111; border: 1px solid #2a2a2a; width: 100%; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; animation: pIn 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+        @keyframes pIn { from { opacity:0; transform:scale(0.92) translateY(16px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        .popup-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 16px; border-bottom: 1px solid #1e1e1e; }
+        .popup-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 1.5px; color: #fff; }
+        .popup-title span { color: #c8ff00; }
+        .popup-close { width: 32px; height: 32px; background: #1a1a1a; border: 1px solid #2a2a2a; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #666; transition: all 0.15s; border-radius: 2px; }
+        .popup-close:hover { background: #222; color: #fff; border-color: #444; }
+        .popup-body { overflow-y: auto; flex: 1; padding: 12px; scrollbar-width: thin; scrollbar-color: #222 transparent; }
+        .popup-loading { display: flex; align-items: center; justify-content: center; height: 120px; gap: 12px; color: #444; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; }
+        .popup-empty { text-align: center; padding: 40px; color: #333; font-size: 14px; }
+        .popup-toast { padding: 10px 22px; background: #c8ff00; color: #000; font-size: 12px; font-weight: 500; letter-spacing: 1px; text-align: center; }
+        .user-row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border: 1px solid transparent; border-radius: 2px; margin-bottom: 2px; }
+        .user-row:hover { background: #161616; border-color: #2a2a2a; }
+        .user-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 1.5px solid #222; flex-shrink: 0; background: #1a1a1a; }
+        .user-info { flex: 1; min-width: 0; }
+        .user-name { font-size: 14px; font-weight: 500; color: #e8e4de; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+        .assigned-tick { flex-shrink: 0; display: inline-flex; align-items: center; }
+        .user-tags { display: flex; gap: 8px; align-items: center; }
+        .user-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #444; }
+        .assign-btn { flex-shrink: 0; padding: 6px 14px; background: transparent; border: 1px solid #333; color: #888; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; }
+        .assign-btn:hover:not(:disabled) { background: #c8ff00; border-color: #c8ff00; color: #000; }
+        .assign-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .assign-btn.loading { background: #1a1a1a; border-color: #222; color: #555; }
+      `}</style>
+
+      <div className="page">
+        <div className="header">
+          <div className="header-left"><h1>VID<span>EOS</span></h1></div>
+          {!loading && <div className="header-count">{videos.length} {videos.length === 1 ? "file" : "files"}</div>}
+        </div>
+
+        {loading ? (
+          <div className="loading-screen">
+            <div className="spinner" />
+            <p className="loading-text">Loading videos</p>
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="empty">No videos found.</div>
+        ) : (
+          <div className="grid">
+            {videos.map((video) => (
+              <VideoCard
+                key={video.id}
+                video={video}
+                isActive={activeId === video.id}
+                onPlay={handlePlay}
+                onAssign={handleAssign}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {activeId && <div className="now-playing-bar" />}
+
+      {assignTarget && (
+        <AssignUserPopup
+          videoId={assignTarget.id}
+          onClose={handleCloseAssign}
+          onAssigned={handleAssigned}
+        />
+      )}
+    </>
+  );
+}

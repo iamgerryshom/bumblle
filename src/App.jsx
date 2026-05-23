@@ -10,6 +10,8 @@ import EmployeesScreen from "./screens/EmployeesScreen";
 import PaymentSuccessScreen from "./screens/PaymentSuccessScreen";
 import PaymentFailedScreen from "./screens/PaymentFailedScreen";
 import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
+import VideosPage from "./screens/VidesPage";
+
 
 import AnalyticsTracker from "./components/AnalyticsTracker"; // 👈 ADD THIS
 
@@ -53,6 +55,9 @@ export default function App() {
         <Route path="/payment-failed" element={<PaymentFailedScreen />} />
 
         <Route path="/payment-success" element={<PaymentSuccessScreen />} />
+
+                <Route path="/videos" element={<VideosPage />} />
+
 
 
       </Routes>
