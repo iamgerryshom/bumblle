@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
-import { collection, getDocs, orderBy, query, where, doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { collection, getDocs, orderBy, query, where, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
+import { db, storage } from "../firebase";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const formatDuration = (s) => {
@@ -150,9 +151,10 @@ const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssi
 });
 
 // ── Lazy video card ───────────────────────────────────────────────────────────
-const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign }) {
+const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, onDelete }) {
   const [inView, setInView] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
+  const [deleteState, setDeleteState] = useState("idle"); // idle | confirm | deleting | done | error
   const containerRef = useRef(null);
   const videoRef = useRef(null);
 
@@ -174,10 +176,58 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign })
     videoRef.current?.play();
   }, [video.id, onPlay]);
 
+  const handleDeleteClick = useCallback(() => {
+    setDeleteState("confirm");
+  }, []);
+
+  const handleDeleteCancel = useCallback(() => {
+    setDeleteState("idle");
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    setDeleteState("deleting");
+    try {
+      // 1. Delete storage file
+      if (video.downloadURL) {
+        try {
+          // Extract the storage path from the download URL
+          const decodedUrl = decodeURIComponent(video.downloadURL);
+          const pathMatch = decodedUrl.match(/\/o\/(.+?)\?/);
+          if (pathMatch) {
+            const storagePath = pathMatch[1];
+            const fileRef = ref(storage, storagePath);
+            await deleteObject(fileRef);
+          }
+        } catch (storageErr) {
+          // If file doesn't exist in storage, proceed with Firestore delete anyway
+          if (storageErr.code !== "storage/object-not-found") {
+            throw storageErr;
+          }
+        }
+      }
+
+      // 2. Delete Firestore document
+      await deleteDoc(doc(db, "videos", video.id));
+
+      setDeleteState("done");
+      // Fade out then remove from list
+      setTimeout(() => onDelete(video.id), 500);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      setDeleteState("error");
+      setTimeout(() => setDeleteState("idle"), 2500);
+    }
+  }, [video, onDelete]);
+
   const title = extractFileName(video.downloadURL, video.name);
+  const isDeleting = deleteState === "deleting";
+  const isDone = deleteState === "done";
 
   return (
-    <div ref={containerRef} className={`card${isActive ? " active" : ""}`}>
+    <div
+      ref={containerRef}
+      className={`card${isActive ? " active" : ""}${isDone ? " deleting-out" : ""}${isDeleting ? " is-deleting" : ""}`}
+    >
       <div className="video-wrapper">
         {inView ? (
           <video
@@ -201,6 +251,14 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign })
             </div>
           </div>
         )}
+
+        {/* Delete progress overlay */}
+        {isDeleting && (
+          <div className="delete-progress-overlay">
+            <div className="delete-spinner" />
+            <span className="delete-progress-label">Deleting…</span>
+          </div>
+        )}
       </div>
 
       <div className="card-body">
@@ -219,18 +277,50 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign })
             <span className="meta-value">{formatDate(video.timeCreated)}</span>
           </div>
         </div>
-        <div className="card-actions">
-          <LoopSwitch videoId={video.id} initialValue={video.seemlessLoop} />
-          <button className="assign-user-btn" onClick={() => onAssign(video)}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-              strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-              <path d="M16 11l2 2 4-4"/>
+
+        {/* Actions row — switches to confirm UI */}
+        {deleteState === "confirm" ? (
+          <div className="delete-confirm-row">
+            <span className="delete-confirm-label">Delete this video?</span>
+            <div className="delete-confirm-btns">
+              <button className="confirm-cancel-btn" onClick={handleDeleteCancel}>Cancel</button>
+              <button className="confirm-delete-btn" onClick={handleDeleteConfirm}>Delete</button>
+            </div>
+          </div>
+        ) : deleteState === "error" ? (
+          <div className="delete-error-row">
+            <svg viewBox="0 0 16 16" fill="none" width="13" height="13">
+              <circle cx="8" cy="8" r="7" stroke="#ff4444" strokeWidth="1.5"/>
+              <path d="M8 4.5v4M8 10.5v1" stroke="#ff4444" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
-            Assign User
-          </button>
-        </div>
+            <span>Delete failed. Try again.</span>
+            <button className="retry-btn" onClick={handleDeleteClick}>Retry</button>
+          </div>
+        ) : (
+          <div className="card-actions">
+            <LoopSwitch videoId={video.id} initialValue={video.seemlessLoop} />
+            <div className="card-action-group">
+              <button className="assign-user-btn" onClick={() => onAssign(video)} disabled={isDeleting}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                  strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                  <path d="M16 11l2 2 4-4"/>
+                </svg>
+                Assign
+              </button>
+              <button className="delete-btn" onClick={handleDeleteClick} disabled={isDeleting} title="Delete video">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+                  strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -263,6 +353,14 @@ export default function VideosPage() {
   const handleCloseAssign = useCallback(() => setAssignTarget(null), []);
   const handleAssigned = useCallback(() => {}, []);
 
+  const handleDelete = useCallback((videoId) => {
+    setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    if (activeId === videoId) {
+      setActiveId(null);
+      activeVideoRef.current = null;
+    }
+  }, [activeId]);
+
   return (
     <>
       <style>{`
@@ -285,9 +383,11 @@ export default function VideosPage() {
 
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px; }
 
-        .card { background: #111; border: 1px solid #1a1a1a; overflow: hidden; transition: border-color 0.2s; contain: layout style; }
+        .card { background: #111; border: 1px solid #1a1a1a; overflow: hidden; transition: border-color 0.2s, opacity 0.4s, transform 0.4s; contain: layout style; }
         .card:hover { border-color: #333; }
         .card.active { border-color: #c8ff00; }
+        .card.is-deleting { pointer-events: none; opacity: 0.7; }
+        .card.deleting-out { opacity: 0; transform: scale(0.95); pointer-events: none; }
 
         .video-wrapper { position: relative; aspect-ratio: 9/16; background: #000; }
         .video-wrapper video { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -298,6 +398,11 @@ export default function VideosPage() {
         .play-btn { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; transition: all 0.2s; backdrop-filter: blur(8px); color: #fff; }
         .play-btn svg { margin-left: 3px; }
 
+        /* Delete progress overlay on video */
+        .delete-progress-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); z-index: 10; }
+        .delete-spinner { width: 32px; height: 32px; border: 2px solid rgba(255,255,255,0.15); border-top-color: #ff4444; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        .delete-progress-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #ff4444; font-weight: 500; }
+
         .card-body { padding: 16px 18px 18px; }
         .card-title { font-size: 14px; font-weight: 500; color: #e8e4de; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .card-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -307,6 +412,8 @@ export default function VideosPage() {
         .meta-value.hi { color: #c8ff00; font-weight: 500; }
 
         .card-actions { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #1a1a1a; gap: 10px; }
+        .card-action-group { display: flex; align-items: center; gap: 6px; }
+
         .loop-control { display: flex; align-items: center; gap: 8px; }
         .loop-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #444; font-weight: 500; user-select: none; }
         .loop-switch { position: relative; width: 38px; height: 22px; background: #1e1e1e; border: 1px solid #2e2e2e; border-radius: 11px; cursor: pointer; transition: background 0.2s, border-color 0.2s; padding: 0; outline: none; }
@@ -316,7 +423,29 @@ export default function VideosPage() {
         .loop-switch.on .loop-knob { transform: translateX(16px); background: #000; }
 
         .assign-user-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: transparent; border: 1px solid #2a2a2a; color: #666; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; }
-        .assign-user-btn:hover { background: #161616; border-color: #444; color: #ccc; }
+        .assign-user-btn:hover:not(:disabled) { background: #161616; border-color: #444; color: #ccc; }
+        .assign-user-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Delete button */
+        .delete-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: transparent; border: 1px solid #2a2a2a; color: #555; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; flex-shrink: 0; }
+        .delete-btn:hover:not(:disabled) { background: rgba(255,68,68,0.1); border-color: #ff4444; color: #ff4444; }
+        .delete-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Confirm delete row */
+        .delete-confirm-row { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #ff444422; gap: 8px; animation: slideIn 0.15s ease; }
+        @keyframes slideIn { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform: translateY(0); } }
+        .delete-confirm-label { font-size: 11px; color: #ff6666; letter-spacing: 0.5px; white-space: nowrap; flex-shrink: 0; }
+        .delete-confirm-btns { display: flex; gap: 6px; flex-shrink: 0; }
+        .confirm-cancel-btn { padding: 5px 10px; background: transparent; border: 1px solid #2a2a2a; color: #555; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; }
+        .confirm-cancel-btn:hover { background: #1a1a1a; border-color: #444; color: #ccc; }
+        .confirm-delete-btn { padding: 5px 10px; background: #ff4444; border: 1px solid #ff4444; color: #fff; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; font-weight: 500; }
+        .confirm-delete-btn:hover { background: #ff2222; border-color: #ff2222; }
+
+        /* Error row */
+        .delete-error-row { display: flex; align-items: center; gap: 7px; padding-top: 12px; border-top: 1px solid #ff444422; animation: slideIn 0.15s ease; }
+        .delete-error-row span { font-size: 11px; color: #ff6666; flex: 1; }
+        .retry-btn { padding: 4px 9px; background: transparent; border: 1px solid #ff4444; color: #ff4444; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; border-radius: 2px; }
+        .retry-btn:hover { background: rgba(255,68,68,0.1); }
 
         .now-playing-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 3px; background: #c8ff00; animation: pulse 2s ease-in-out infinite; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
@@ -370,6 +499,7 @@ export default function VideosPage() {
                 isActive={activeId === video.id}
                 onPlay={handlePlay}
                 onAssign={handleAssign}
+                onDelete={handleDelete}
               />
             ))}
           </div>

@@ -13,6 +13,7 @@ import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
 import VideosPage from "./screens/VidesPage";
 
 
+
 import AnalyticsTracker from "./components/AnalyticsTracker"; // 👈 ADD THIS
 
 
@@ -56,7 +57,9 @@ export default function App() {
 
         <Route path="/payment-success" element={<PaymentSuccessScreen />} />
 
-                <Route path="/videos" element={<VideosPage />} />
+        <Route path="/videos" element={<VideosPage />} />
+
+  
 
 
 
