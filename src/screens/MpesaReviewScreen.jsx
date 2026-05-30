@@ -3,6 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import "spinkit/spinkit.min.css";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import backIcon from "../assets/icons/back-vector.svg";
+import axios from "axios";
+import { getAuth } from "firebase/auth";
+
+
 
 export default function PaymentConfirmationScreen() {
   const navigate = useNavigate();
@@ -13,15 +17,21 @@ export default function PaymentConfirmationScreen() {
   const amount = location.state?.amount;
   const [loading, setLoading] = useState(false);
 
+  const auth = getAuth();
+  const user = auth.currentUser;
+
   const handleSendPrompt = async () => {
     if (!phone || !amount) { alert("Missing payment details"); navigate("/payment"); return; }
     setLoading(true);
 
-    // ✅ Read ref from localStorage
     const refCode = localStorage.getItem("refCode") || null;
 
     try {
-      const result = await stkPush({ amount, phone, organization: "WIDE SCOPE DATA", refCode });
+      const result = await axios.post(
+        "https://us-central1-finance-service-30992.cloudfunctions.net/stkPush",
+        { amount, phone, refCode, initiatorId: user?.uid || null },
+      );
+
       const checkoutRequestId = result?.data?.response?.CheckoutRequestID || result?.data?.CheckoutRequestID || null;
       if (!checkoutRequestId) { console.error("Missing CheckoutRequestID", result.data); return; }
       navigate("/mpesa-processing", { state: { checkoutRequestId, phone, amount, organization: "WIDE SCOPE DATA" } });
@@ -33,8 +43,8 @@ export default function PaymentConfirmationScreen() {
   };
 
   const steps = [
-    <>You will receive an M-Pesa prompt from <b style={{color:"#f1f1f5"}}>WIDE SCOPE DATA</b> of <b style={{color:"#f1f1f5"}}>KES {amount}</b></>,
-    <>Ensure your phone <b style={{color:"#f1f1f5"}}>{phone}</b> is active and reachable</>,
+    <>You will receive an M-Pesa prompt from <b style={{ color: "#f1f1f5" }}>WIDE SCOPE DATA</b> of <b style={{ color: "#f1f1f5" }}>KES {amount}</b></>,
+    <>Ensure your phone <b style={{ color: "#f1f1f5" }}>{phone}</b> is active and reachable</>,
     <>Enter your M-Pesa PIN to authorize payment</>,
     <>Wait a few seconds while we confirm your transaction</>,
     <>Do not close this screen until payment is complete</>,
