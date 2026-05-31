@@ -40,6 +40,7 @@ export default function HomeScreen() {
           image: data.photoUrl,
           age: data.age,
           online: Math.random() > 0.3,
+          remoteVideoId: data.remoteVideoId,
           flag: `https://flagcdn.com/w40/${data.countryNameCode?.toLowerCase()}.png`,
           remoteVideoUrl: data.remoteVideoUrl ?? null,
         };
@@ -49,7 +50,7 @@ export default function HomeScreen() {
       setUsers(shuffled);
 
       if (shuffled.length > 0) {
-        const storedValue = localStorage.getItem("hasSeenIncomingCall");
+        const storedValue = localStorage.getItem("hasSeenIncomingCallv1");
         const isFirstTime = storedValue !== "true";
         const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
         const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
@@ -57,9 +58,9 @@ export default function HomeScreen() {
         let callerUser;
 
         if (isFirstTime) {
-          const specificUser = usersData.find((u) => u.id === "7VvYXqXb7QmRAKC2ph7D");
+          const specificUser = usersData.find((u) => u.id === "W3CVKZc4NkG7bR2y03tE");
           callerUser = specificUser ?? availableUsers[Math.floor(Math.random() * availableUsers.length)];
-          localStorage.setItem("hasSeenIncomingCall", "true");
+          localStorage.setItem("hasSeenIncomingCallv1", "true");
         } else {
           if (availableUsers.length === 0) {
             setLoading(false);
@@ -396,11 +397,11 @@ export default function HomeScreen() {
         />
 
         <OngoingCallScreen
-  visible={videoCallVisible}
-  onEnd={handleEndVideoCall}
-  remoteVideoUrl={activeCallUser?.remoteVideoUrl ?? null}
-  remoteUser={activeCallUser ?? null}
-/>
+          visible={videoCallVisible}
+          onEnd={handleEndVideoCall}
+          remoteVideoUrl={activeCallUser?.remoteVideoUrl ?? null}
+          remoteUser={activeCallUser ?? null}
+        />
 
         {outgoingCallUser && (
           <OutgoingCallScreen
