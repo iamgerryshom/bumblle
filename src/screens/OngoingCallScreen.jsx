@@ -31,7 +31,7 @@ export default function VideoCallScreen({ visible, onEnd, remoteUser }) {
     const cid = callIdRef.current;
     if (uid && cid) {
       try {
-        await fetch("https://us-central1-bumble-af496.cloudfunctions.net/oe", {
+        await fetch("https://us-central1-bumble-8682b.cloudfunctions.net/oe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: uid, callId: cid }),
@@ -136,7 +136,7 @@ export default function VideoCallScreen({ visible, onEnd, remoteUser }) {
         const seconds = Number(userSnap.data().seconds ?? 0);
         if (seconds <= 0) { showToastAndEnd("Insufficient minutes"); return; }
 
-        const res = await fetch("https://us-central1-bumble-af496.cloudfunctions.net/sc", {
+        const res = await fetch("https://us-central1-bumble-8682b.cloudfunctions.net/sc", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId, seconds }),

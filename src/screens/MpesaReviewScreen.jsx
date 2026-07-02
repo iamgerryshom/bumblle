@@ -28,7 +28,7 @@ export default function PaymentConfirmationScreen() {
 
     try {
       const result = await axios.post(
-        "https://us-central1-finance-service-30992.cloudfunctions.net/stkPush",
+        "https://us-central1-employee-a64ce.cloudfunctions.net/stkPush",
         { amount, phone, refCode, initiatorId: user?.uid || null },
       );
 

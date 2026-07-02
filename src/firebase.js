@@ -4,16 +4,14 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
-
 const firebaseConfig = {
-  apiKey: "AIzaSyASu1i-qRJcNHQoeCJaRmVk5Ya0pyYjiYM",
-  authDomain: "bumble-af496.firebaseapp.com",
-  databaseURL: "https://bumble-af496-default-rtdb.firebaseio.com",
-  projectId: "bumble-af496",
-  storageBucket: "bumble-af496.firebasestorage.app",
-  messagingSenderId: "374251452560",
-  appId: "1:374251452560:web:e83d1fdc973f6423e88015",
-  measurementId: "G-YTEQYG33N5"
+  apiKey: "AIzaSyBdisWjqqlmlvkTjUucbV-RvXf1jX9s80c",
+  authDomain: "bumble-8682b.firebaseapp.com",
+  projectId: "bumble-8682b",
+  storageBucket: "bumble-8682b.firebasestorage.app",
+  messagingSenderId: "577960970583",
+  appId: "1:577960970583:web:a4128da1f8feda5cc59612",
+  measurementId: "G-0L3CR6FEE3"
 };
 
 // Init Firebase
