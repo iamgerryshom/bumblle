@@ -7,6 +7,11 @@
  *   3. Upload every photo to Storage using that uid in the custom metadata,
  *      reporting per-photo and overall progress the whole way.
  *
+ * Visual design: a darkroom / contact-sheet theme — photos are treated like
+ * negatives on a light table, numbered in upload order, with the first
+ * frame marked as the primary shot. All data-fetching, Firestore field
+ * mappings, and upload logic below are unchanged from the original.
+ *
  * Requires (in your own project):
  *   npm install firebase
  *   Tailwind CSS configured (all styling below is Tailwind + a small
@@ -83,104 +88,113 @@ function uploadOnePhoto({ file, index, folder, userId, isPrimary, onProgress }) 
   });
 }
 
+// ---------- Tiny inline icons (no external icon package required) ----------
+
+const IconCheck = () => (
+  <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+    <path d="M3 8.3L6.3 11.5L13 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconCross = () => (
+  <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+    <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const IconStar = () => (
+  <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 1.3l1.87 4.02 4.43.5-3.32 3.02.9 4.36L8 11.03l-3.88 2.17.9-4.36L1.7 5.82l4.43-.5L8 1.3z" />
+  </svg>
+);
+
+const IconWarning = () => (
+  <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+    <path d="M8 5.2v4M8 11.6h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const IconCamera = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M4.5 8.2h2.7l1.4-2h6.8l1.4 2h2.7a1 1 0 011 1v9a1 1 0 01-1 1H4.5a1 1 0 01-1-1v-9a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    <circle cx="12" cy="13.1" r="3.1" stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+
+const IconChevron = () => (
+  <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 // ---------- Small presentational bits ----------
 
-function Thumb({ src, isPrimary, progress, status, onRemove, onMakePrimary }) {
+function Thumb({ src, frameNumber, isPrimary, progress, status, onRemove, onMakePrimary }) {
   const showRing = status === "uploading";
-  const ringDeg = Math.min(360, Math.round((progress / 100) * 360));
+  const ringPct = Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="relative w-16 h-16 shrink-0 group">
-      <div
-        className="w-full h-full rounded-lg overflow-hidden bg-[--surface-2] relative"
-        style={
-          showRing
-            ? {
-                boxShadow: `inset 0 0 0 2px rgba(255,255,255,0.06)`,
-              }
-            : undefined
-        }
-      >
+    <div className="thumb-frame group">
+      <div className="thumb-img-wrap">
         <img
           src={src}
           alt="Selected profile"
-          className={`w-full h-full object-cover transition-opacity duration-300 ${
-            status === "done" ? "opacity-100" : "opacity-60"
-          }`}
+          className={`thumb-img ${status === "done" ? "is-done" : ""}`}
         />
 
         {showRing && (
-          <svg
-            className="absolute inset-0 w-full h-full -rotate-90"
-            viewBox="0 0 36 36"
-          >
+          <svg className="thumb-ring" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(0,0,0,0.45)" strokeWidth="2" />
             <circle
               cx="18"
               cy="18"
-              r="16"
-              fill="none"
-              stroke="rgba(0,0,0,0.4)"
-              strokeWidth="2.5"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r="16"
+              r="15.5"
               fill="none"
               stroke="var(--accent)"
-              strokeWidth="2.5"
+              strokeWidth="2"
               strokeLinecap="round"
-              strokeDasharray={`${(ringDeg / 360) * 100.5} 100.5`}
+              strokeDasharray={`${(ringPct / 100) * 97.4} 97.4`}
+              transform="rotate(-90 18 18)"
             />
           </svg>
         )}
+
+        {status === "idle" && (
+          <div className="thumb-actions">
+            {!isPrimary && (
+              <button type="button" onClick={onMakePrimary} title="Make primary" className="thumb-action-btn">
+                <IconStar />
+              </button>
+            )}
+            <button type="button" onClick={onRemove} title="Remove photo" className="thumb-action-btn thumb-action-danger">
+              <IconCross />
+            </button>
+          </div>
+        )}
       </div>
 
+      <span className="frame-number">{frameNumber}</span>
+
       {isPrimary && (
-        <span className="absolute -top-1.5 -left-1.5 text-[8px] font-mono font-medium tracking-wide bg-[--accent] text-[--ink] px-1 py-0.5 rounded shadow-sm">
-          1st
+        <span className="badge-primary">
+          <IconStar /> Primary
         </span>
       )}
 
       {status === "done" && (
-        <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[--success] text-[--ink] text-[10px] flex items-center justify-center font-bold ring-2 ring-[--ink]">
-          ✓
+        <span className="badge-status badge-success">
+          <IconCheck />
         </span>
       )}
 
       {status === "error" && (
-        <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[--error] text-[--cream] text-[10px] flex items-center justify-center font-bold ring-2 ring-[--ink]">
-          !
+        <span className="badge-status badge-error">
+          <IconWarning />
         </span>
       )}
 
-      {status === "idle" && (
-        <div className="absolute inset-0 rounded-lg flex items-center justify-center gap-1 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!isPrimary && (
-            <button
-              type="button"
-              onClick={onMakePrimary}
-              title="Make primary"
-              className="w-5 h-5 rounded-full bg-white/10 text-[--cream] text-[10px] flex items-center justify-center hover:bg-[--accent] hover:text-[--ink] transition-colors"
-            >
-              ★
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onRemove}
-            title="Remove photo"
-            className="w-5 h-5 rounded-full bg-white/10 text-[--cream] text-[10px] flex items-center justify-center hover:bg-[--error] transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       {status === "uploading" && (
-        <div className="absolute -bottom-4 left-0 right-0 text-center font-mono text-[9px] text-[--muted]">
-          {Math.round(progress)}%
-        </div>
+        <span className="thumb-progress-label">{Math.round(progress)}%</span>
       )}
     </div>
   );
@@ -189,9 +203,7 @@ function Thumb({ src, isPrimary, progress, status, onRemove, onMakePrimary }) {
 function Field({ label, htmlFor, children }) {
   return (
     <label htmlFor={htmlFor} className="block">
-      <span className="block text-[11px] font-mono uppercase tracking-[0.14em] text-[--muted] mb-2">
-        {label}
-      </span>
+      <span className="field-label">{label}</span>
       {children}
     </label>
   );
@@ -342,162 +354,168 @@ export default function CreateUserPage() {
   const busy = phase === "creating" || phase === "uploading";
 
   return (
-    <div className="min-h-screen bg-[--ink] text-[--cream]" style={rootVars}>
+    <div className="min-h-screen bg-[--ink] text-[--paper] relative" style={rootVars}>
       <style>{css}</style>
+      <div className="safelight" aria-hidden="true" />
 
-      <div className="max-w-3xl mx-auto px-5 sm:px-8 py-14 sm:py-20">
+      <div className="max-w-5xl mx-auto px-5 sm:px-8 py-14 sm:py-20 relative">
         {/* Hero */}
-        <div className="mb-10 sm:mb-12">
-          <h1 className="font-display text-3xl sm:text-4xl leading-tight text-[--cream]">
+        <div className="mb-10 sm:mb-14 fade-up">
+          <span className="eyebrow">Profile · New entry</span>
+          <h1 className="font-display text-4xl sm:text-5xl leading-[1.05] text-[--paper] mt-3">
             Create a new profile
           </h1>
-          <p className="mt-2 text-[--muted] text-sm">
-            Enter their details, add a few photos, and we'll create the
-            profile before sending images to storage.
+          <p className="subtitle mt-3 max-w-md">
+            Add their details and a few photos — we'll create the profile,
+            then upload each image to storage.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Details */}
-          <div className="card space-y-5">
-            <Field label="Name" htmlFor="name">
-              <input
-                id="name"
-                type="text"
-                value={form.name}
-                onChange={updateField("name")}
-                disabled={busy || phase === "done"}
-                placeholder="e.g. Amara Wanjiru"
-                className="input"
-              />
-            </Field>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5">
+            {/* Details */}
+            <div className="card fade-up" style={{ animationDelay: "70ms" }}>
+              <div className="card-label">Identity</div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Age" htmlFor="age">
-                <input
-                  id="age"
-                  type="number"
-                  min="18"
-                  max="99"
-                  value={form.age}
-                  onChange={updateField("age")}
-                  disabled={busy || phase === "done"}
-                  placeholder="24"
-                  className="input"
-                />
-              </Field>
-
-              <Field label="Gender" htmlFor="gender">
-                <select
-                  id="gender"
-                  value={form.gender}
-                  onChange={updateField("gender")}
-                  disabled={busy || phase === "done"}
-                  className="input"
-                >
-                  <option value="F">Female</option>
-                  <option value="M">Male</option>
-                  <option value="O">Other</option>
-                </select>
-              </Field>
-            </div>
-
-            <Field label="Country" htmlFor="country">
-              <select
-                id="country"
-                value={form.countryNameCode}
-                onChange={updateField("countryNameCode")}
-                disabled={busy || phase === "done"}
-                className="input"
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label} ({c.code})
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            {createdUserId && (
-              <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-[--muted]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[--accent]" />
-                uid <span className="text-[--accent]">{createdUserId}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Photos */}
-          <div className="card space-y-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] font-mono uppercase tracking-[0.14em] text-[--muted]">
-                Photos
-              </span>
-              <span className="text-[11px] font-mono text-[--muted]">
-                {photos.length}/{MAX_PHOTOS}
-              </span>
-            </div>
-
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`dropzone ${
-                photos.length >= MAX_PHOTOS || busy || phase === "done"
-                  ? "opacity-50 pointer-events-none"
-                  : "cursor-pointer"
-              }`}
-            >
-              <p className="text-sm text-[--cream]">
-                Drop photos here, or click to browse
-              </p>
-              <p className="text-xs text-[--muted] mt-1">
-                First photo becomes the primary shot
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => {
-                  handleFiles(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-            </div>
-
-            {photos.length > 0 && (
-              <div className="flex flex-wrap gap-3 pt-1">
-                {photos.map((p, i) => (
-                  <Thumb
-                    key={p.id}
-                    src={p.previewUrl}
-                    isPrimary={i === 0}
-                    progress={p.progress}
-                    status={p.status}
-                    onRemove={() => removePhoto(p.id)}
-                    onMakePrimary={() => makePrimary(p.id)}
+              <div className="space-y-5 mt-4">
+                <Field label="Name" htmlFor="name">
+                  <input
+                    id="name"
+                    type="text"
+                    value={form.name}
+                    onChange={updateField("name")}
+                    disabled={busy || phase === "done"}
+                    placeholder="e.g. Amara Wanjiru"
+                    className="input"
                   />
-                ))}
+                </Field>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Age" htmlFor="age">
+                    <input
+                      id="age"
+                      type="number"
+                      min="18"
+                      max="99"
+                      value={form.age}
+                      onChange={updateField("age")}
+                      disabled={busy || phase === "done"}
+                      placeholder="24"
+                      className="input input-number"
+                    />
+                  </Field>
+
+                  <Field label="Gender" htmlFor="gender">
+                    <div className="select-wrap">
+                      <select
+                        id="gender"
+                        value={form.gender}
+                        onChange={updateField("gender")}
+                        disabled={busy || phase === "done"}
+                        className="input"
+                      >
+                        <option value="F">Female</option>
+                        <option value="M">Male</option>
+                        <option value="O">Other</option>
+                      </select>
+                      <span className="select-chevron"><IconChevron /></span>
+                    </div>
+                  </Field>
+                </div>
+
+                <Field label="Country" htmlFor="country">
+                  <div className="select-wrap">
+                    <select
+                      id="country"
+                      value={form.countryNameCode}
+                      onChange={updateField("countryNameCode")}
+                      disabled={busy || phase === "done"}
+                      className="input"
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label} ({c.code})
+                        </option>
+                      ))}
+                    </select>
+                    <span className="select-chevron"><IconChevron /></span>
+                  </div>
+                </Field>
               </div>
-            )}
+
+              {createdUserId && (
+                <div className="uid-chip">
+                  <span className="uid-dot" />
+                  uid <span className="uid-value">{createdUserId}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Photos — contact sheet */}
+            <div className="card contact-sheet fade-up" style={{ animationDelay: "130ms" }}>
+              <div className="sprocket sprocket-top" aria-hidden="true" />
+
+              <div className="flex items-baseline justify-between">
+                <div className="card-label">Contact sheet</div>
+                <span className="frame-count">{photos.length}/{MAX_PHOTOS}</span>
+              </div>
+
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`dropzone mt-4 ${
+                  photos.length >= MAX_PHOTOS || busy || phase === "done"
+                    ? "opacity-50 pointer-events-none"
+                    : "cursor-pointer"
+                }`}
+              >
+                <span className="dropzone-icon"><IconCamera /></span>
+                <p className="dropzone-title">Drop photos here, or click to browse</p>
+                <p className="dropzone-hint">First photo becomes the primary shot</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+
+              {photos.length > 0 && (
+                <div className="thumb-grid mt-4">
+                  {photos.map((p, i) => (
+                    <Thumb
+                      key={p.id}
+                      src={p.previewUrl}
+                      frameNumber={String(i + 1).padStart(2, "0")}
+                      isPrimary={i === 0}
+                      progress={p.progress}
+                      status={p.status}
+                      onRemove={() => removePhoto(p.id)}
+                      onMakePrimary={() => makePrimary(p.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="sprocket sprocket-bottom" aria-hidden="true" />
+            </div>
           </div>
 
           {/* Submit bar */}
-          <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="submit-bar fade-up" style={{ animationDelay: "180ms" }}>
             {phase === "done" ? (
               <>
-                <div className="flex items-center gap-2.5 text-[--success] text-sm font-medium">
-                  <span className="w-5 h-5 rounded-full bg-[--success] text-[--ink] flex items-center justify-center text-xs font-bold">
-                    ✓
-                  </span>
+                <div className="done-message">
+                  <span className="done-icon"><IconCheck /></span>
                   Profile created and photos uploaded
                 </div>
-                <button
-                  type="button"
-                  onClick={resetAll}
-                  className="btn-secondary sm:ml-auto"
-                >
+                <button type="button" onClick={resetAll} className="btn-secondary sm:ml-auto">
                   Add another profile
                 </button>
               </>
@@ -512,19 +530,15 @@ export default function CreateUserPage() {
                 </button>
 
                 {busy && (
-                  <div className="flex-1 h-1.5 rounded-full bg-[--line] overflow-hidden max-w-xs">
+                  <div className="progress-track">
                     <div
-                      className="h-full progress-fill transition-[width] duration-200"
-                      style={{
-                        width: `${phase === "creating" ? 15 : overallProgress}%`,
-                      }}
+                      className="progress-fill"
+                      style={{ width: `${phase === "creating" ? 15 : overallProgress}%` }}
                     />
                   </div>
                 )}
 
-                {errorMessage && (
-                  <span className="text-sm text-[--error]">{errorMessage}</span>
-                )}
+                {errorMessage && <span className="error-text">{errorMessage}</span>}
               </>
             )}
           </div>
@@ -535,30 +549,117 @@ export default function CreateUserPage() {
 }
 
 const rootVars = {
-  "--ink": "#0B0B0D",
-  "--surface": "#131317",
-  "--surface-2": "#1B1B20",
-  "--accent": "#5B8CFF",
-  "--accent-deep": "#3E6FE0",
-  "--cream": "#F1F1F0",
-  "--muted": "#8A8A8F",
-  "--success": "#3ECF8E",
-  "--error": "#F2685C",
+  "--ink": "#0A0A0C",
+  "--surface": "#17151A",
+  "--surface-2": "#201D24",
+  "--accent": "#E8A33D",
+  "--accent-deep": "#C9852A",
+  "--accent-glow": "rgba(232, 163, 61, 0.32)",
+  "--paper": "#F3EEE4",
+  "--muted": "#8D8880",
+  "--success": "#7FD858",
+  "--error": "#FF5C5C",
   "--line": "rgba(255,255,255,0.08)",
 };
 
 const css = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-.font-display { font-family: 'Fraunces', serif; font-weight: 600; letter-spacing: -0.01em; }
-body, .input, button { font-family: 'Inter', sans-serif; }
-.font-mono, [class*="font-mono"] { font-family: 'JetBrains Mono', monospace; }
+.font-display { font-family: 'Manrope', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+body, .input, button, select { font-family: 'Inter', sans-serif; }
+.font-mono, .uid-chip, .frame-number, .frame-count, .eyebrow, .thumb-progress-label { font-family: 'JetBrains Mono', monospace; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-up { animation: none; }
+}
+
+/* Ambient safelight glow behind the hero */
+.safelight {
+  position: fixed;
+  top: -220px;
+  left: -160px;
+  width: 620px;
+  height: 620px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 68%);
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.eyebrow::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--accent);
+  display: inline-block;
+}
+
+.subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  color: var(--muted);
+  line-height: 1.55;
+}
 
 .card {
-  background: var(--surface);
+  position: relative;
+  background: linear-gradient(180deg, var(--surface) 0%, #141217 100%);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 22px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 24px 60px -34px rgba(0,0,0,0.85);
+}
+.contact-sheet { overflow: hidden; padding-top: 26px; padding-bottom: 26px; }
+
+.card-label {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.frame-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.sprocket {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background-image: radial-gradient(circle at 11px 6px, var(--ink) 3px, transparent 3.4px);
+  background-size: 22px 12px;
+  background-repeat: repeat-x;
+  opacity: 0.7;
+}
+.sprocket-top { top: 0; }
+.sprocket-bottom { bottom: 0; }
+
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 8px;
 }
 
 .input {
@@ -567,58 +668,244 @@ body, .input, button { font-family: 'Inter', sans-serif; }
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 10px 12px;
-  color: var(--cream);
+  color: var(--paper);
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,0.15); }
-.input:disabled { opacity: 0.55; }
-.input::placeholder { color: #5A5A5F; }
-select.input { appearance: none; }
+.input:focus-visible,
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.input:disabled { opacity: 0.5; }
+.input::placeholder { color: #605C58; }
+.input-number::-webkit-outer-spin-button,
+.input-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.input-number { -moz-appearance: textfield; }
+
+.select-wrap { position: relative; }
+select.input { appearance: none; padding-right: 32px; }
+.select-chevron {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.uid-chip {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.uid-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px 1px var(--accent-glow); }
+.uid-value { color: var(--accent); }
 
 .dropzone {
   border: 1px dashed var(--line);
   border-radius: 12px;
-  padding: 22px 20px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.dropzone:hover {
+.dropzone:hover, .dropzone:focus-visible {
   border-color: var(--accent-deep);
-  background: rgba(91,140,255,0.05);
+  background: rgba(232,163,61,0.05);
+}
+.dropzone-icon { color: var(--muted); margin-bottom: 10px; }
+.dropzone-title { font-size: 14px; color: var(--paper); }
+.dropzone-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.thumb-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 14px;
+}
+
+.thumb-frame { position: relative; width: 76px; }
+.thumb-img-wrap {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.65;
+  filter: saturate(0.7);
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+.thumb-img.is-done { opacity: 1; filter: saturate(1); }
+
+.thumb-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.thumb-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(10,10,12,0.55);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.group:hover .thumb-actions, .thumb-actions:focus-within { opacity: 1; }
+.thumb-action-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.1);
+  color: var(--paper);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.thumb-action-btn:hover { background: var(--accent); color: var(--ink); }
+.thumb-action-danger:hover { background: var(--error); color: var(--paper); }
+
+.frame-number {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.badge-primary {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8.5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: var(--ink);
+  padding: 2.5px 6px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px -1px var(--accent-glow);
+}
+
+.badge-status {
+  position: absolute;
+  bottom: 8px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.badge-success { background: var(--success); color: var(--ink); }
+.badge-error { background: var(--error); color: var(--paper); }
+
+.thumb-progress-label {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.submit-bar {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+@media (min-width: 640px) {
+  .submit-bar { flex-direction: row; align-items: center; }
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #ffffff;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-deep) 100%);
+  color: #1A1206;
   font-weight: 600;
   font-size: 14px;
   padding: 11px 22px;
   border-radius: 9px;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
   white-space: nowrap;
+  box-shadow: 0 8px 20px -8px var(--accent-glow);
 }
-.btn-primary:hover:not(:disabled) { background: var(--accent-deep); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 10px 26px -8px var(--accent-glow); }
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
-.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-primary:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+.btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .btn-secondary {
   background: transparent;
   border: 1px solid var(--line);
-  color: var(--cream);
+  color: var(--paper);
   font-weight: 500;
   font-size: 14px;
   padding: 10px 18px;
   border-radius: 9px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.btn-secondary:hover { border-color: var(--accent); background: rgba(91,140,255,0.06); }
+.btn-secondary:hover { border-color: var(--accent); background: rgba(232,163,61,0.06); }
+.btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.progress-track {
+  flex: 1;
+  max-width: 260px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
 .progress-fill {
-  background: var(--accent);
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  box-shadow: 0 0 10px 0 var(--accent-glow);
+  transition: width 0.2s ease;
+}
+
+.error-text { font-size: 13px; color: var(--error); }
+
+.done-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--success);
+}
+.done-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 `;
