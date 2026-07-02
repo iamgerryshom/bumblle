@@ -29,7 +29,10 @@ export default function App() {
 
       <Routes>
         {MAINTENANCE_MODE ? (
-          <Route path="*" element={<MaintenanceScreen />} />
+          <>
+            <Route path="/videos" element={<VideosPage />} />
+            <Route path="*" element={<MaintenanceScreen />} />
+          </>
         ) : (
           <>
             <Route path="/" element={<MainScreen />} />
