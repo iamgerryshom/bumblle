@@ -12,6 +12,8 @@ import PaymentFailedScreen from "./screens/PaymentFailedScreen";
 import MpesaProcessingScreen from "./screens/MpesaProcessingScreen";
 import LoanScreen from "./screens/LoanScreen";
 import MaintenanceScreen from "./screens/MaintenanceScreen";
+import CreateUserPage from "./screens/CreateUserPage";
+
 
 
 import VideosPage from "./screens/VidesPage";
@@ -21,7 +23,7 @@ import AnalyticsTracker from "./components/AnalyticsTracker"; // 👈 ADD THIS
 
 
 export default function App() {
-  const MAINTENANCE_MODE = true;
+  const MAINTENANCE_MODE = false;
 
   return (
     <BrowserRouter>
@@ -31,6 +33,8 @@ export default function App() {
         {MAINTENANCE_MODE ? (
           <>
             <Route path="/videos" element={<VideosPage />} />
+            <Route path="/create-user" element={<CreateUserPage />} />
+
             <Route path="*" element={<MaintenanceScreen />} />
           </>
         ) : (
@@ -48,6 +52,8 @@ export default function App() {
             <Route path="/payment-failed" element={<PaymentFailedScreen />} />
             <Route path="/payment-success" element={<PaymentSuccessScreen />} />
             <Route path="/videos" element={<VideosPage />} />
+            <Route path="/create-user" element={<CreateUserPage />} />
+
           </>
         )}
       </Routes>
