@@ -11,10 +11,10 @@
  *   - Lists every user doc from Firestore.
  *   - Lists each user's photos straight from their Storage folder
  *     (photos were never written back to Firestore, same as the Android app).
- *   - Lets the admin remove a single photo, or remove a profile entirely
- *     (Firestore doc + every photo in their Storage folder).
- *   - If the removed photo was the primary shot, the next photo (by upload
- *     order) is promoted to primary via Storage custom metadata.
+ *   - Lets the admin remove a profile entirely: this deletes the Firestore
+ *     doc AND every photo in that user's Storage folder together, as one
+ *     action. There is no way to remove a single photo on its own — removal
+ *     always applies to the whole profile.
  *
  * Visual design: a darkroom / contact-sheet theme — photos are treated like
  * negatives on a light table, numbered in upload order, with the first
@@ -46,7 +46,6 @@ import {
   listAll,
   deleteObject,
   getMetadata,
-  updateMetadata,
 } from "firebase/storage";
 import { db, storage } from "../firebase"; // <-- adjust path to match your project structure
 
@@ -140,21 +139,10 @@ async function fetchUserPhotos(userId) {
   });
 }
 
-// ---------- Storage: promote a photo to primary (used after the old primary is removed) ----------
-async function promotePhotoToPrimary(path) {
-  const fileRef = storageRef(storage, path);
-  const meta = await getMetadata(fileRef);
-  await updateMetadata(fileRef, {
-    customMetadata: { ...(meta.customMetadata || {}), isPrimary: "true" },
-  });
-}
-
-// ---------- Storage: remove one photo ----------
-function deleteUserPhoto(path) {
-  return deleteObject(storageRef(storage, path));
-}
-
 // ---------- Firestore + Storage: remove a user and every photo they have ----------
+// This is the ONLY deletion path in the app: it always removes the
+// Firestore user doc together with every photo in that user's Storage
+// folder, as a single all-or-nothing action.
 async function deleteUserCompletely(userId) {
   const folderRef = storageRef(storage, `users/${userId}/photos`);
   const listing = await listAll(folderRef);
@@ -314,28 +302,21 @@ function Thumb({ src, frameNumber, isPrimary, progress, status, onRemove, onMake
   );
 }
 
-function ManagedPhotoThumb({ photo, deleting, onDelete }) {
+// Read-only thumbnail used in the Archive view. Individual photos can no
+// longer be removed on their own — the only action available at the photo
+// level is viewing which shot is primary. Deletion always happens at the
+// profile level (see ProfileCard's "Remove profile" button).
+function ManagedPhotoThumb({ photo }) {
   return (
     <div className="thumb-frame">
       <div className="thumb-img-wrap">
         <img src={photo.url} alt="" className="thumb-img is-done" />
-        {deleting && (
-          <div className="thumb-deleting-overlay">
-            <span className="spinner" />
-          </div>
-        )}
       </div>
 
       {photo.isPrimary && (
         <span className="badge-primary">
           <IconStar /> Primary
         </span>
-      )}
-
-      {!deleting && (
-        <button type="button" onClick={onDelete} className="thumb-remove-btn" title="Remove photo">
-          <IconCross />
-        </button>
       )}
     </div>
   );
@@ -358,7 +339,6 @@ function ProfileCard({ user, onRemoved, delayMs = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
-  const [deletingPhotoPath, setDeletingPhotoPath] = useState(null);
   const [cardError, setCardError] = useState("");
   const confirmTimer = useRef(null);
 
@@ -383,6 +363,8 @@ function ProfileCard({ user, onRemoved, delayMs = 0 }) {
 
   const primary = photos.find((p) => p.isPrimary) || photos[0];
 
+  // Removing a profile deletes the Firestore doc AND every photo in
+  // Storage together — there's no partial/per-photo delete anymore.
   const handleDeleteUserClick = () => {
     if (deletingUser) return;
     if (!confirmDelete) {
@@ -400,24 +382,6 @@ function ProfileCard({ user, onRemoved, delayMs = 0 }) {
         setConfirmDelete(false);
         setCardError(err.message || "Could not remove this profile.");
       });
-  };
-
-  const handleDeletePhoto = async (photo) => {
-    setDeletingPhotoPath(photo.path);
-    setCardError("");
-    try {
-      await deleteUserPhoto(photo.path);
-      let remaining = photos.filter((p) => p.path !== photo.path);
-      if (photo.isPrimary && remaining.length > 0) {
-        await promotePhotoToPrimary(remaining[0].path);
-        remaining = remaining.map((p, i) => (i === 0 ? { ...p, isPrimary: true } : p));
-      }
-      setPhotos(remaining);
-    } catch (err) {
-      setCardError(err.message || "Could not remove that photo.");
-    } finally {
-      setDeletingPhotoPath(null);
-    }
   };
 
   return (
@@ -478,12 +442,7 @@ function ProfileCard({ user, onRemoved, delayMs = 0 }) {
           {photoStatus === "ready" && photos.length > 0 && (
             <div className="thumb-grid">
               {photos.map((photo) => (
-                <ManagedPhotoThumb
-                  key={photo.path}
-                  photo={photo}
-                  deleting={deletingPhotoPath === photo.path}
-                  onDelete={() => handleDeletePhoto(photo)}
-                />
+                <ManagedPhotoThumb key={photo.path} photo={photo} />
               ))}
             </div>
           )}
@@ -774,7 +733,7 @@ export default function CreateUserPage() {
           <p className="subtitle mt-3 max-w-md">
             {tab === "create"
               ? "Add their details and a few photos — we'll create the profile, then upload each image to storage."
-              : "Browse every saved profile, review their photos, and remove what shouldn't be there."}
+              : "Browse every saved profile and review their photos. Removing a profile deletes it completely — the record and every photo, all at once."}
           </p>
 
           <div className="tabs" role="tablist">
@@ -1237,46 +1196,6 @@ select.input { appearance: none; padding-right: 32px; }
 }
 .thumb-action-btn:hover { background: var(--accent); color: var(--ink); }
 .thumb-action-danger:hover { background: var(--error); color: var(--paper); }
-
-.thumb-remove-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.thumb-remove-btn:hover { background: var(--error); border-color: var(--error); color: var(--paper); }
-.thumb-remove-btn:focus-visible { outline: 2px solid var(--error); outline-offset: 2px; }
-
-.thumb-deleting-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10,10,12,0.55);
-}
-.spinner {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid rgba(232,163,61,0.25);
-  border-top-color: var(--accent);
-  animation: spin 0.7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .spinner { animation: spin 1.4s linear infinite; }
-}
 
 .frame-number {
   display: block;
