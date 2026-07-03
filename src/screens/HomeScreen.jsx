@@ -50,7 +50,7 @@ export default function HomeScreen() {
       setUsers(shuffled);
 
       if (shuffled.length > 0) {
-        const storedValue = localStorage.getItem("hasSeenIncomingCallv1");
+        const storedValue = localStorage.getItem("hasSeenIncomingCallv2");
         const isFirstTime = storedValue !== "true";
         const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
         const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
@@ -58,9 +58,9 @@ export default function HomeScreen() {
         let callerUser;
 
         if (isFirstTime) {
-          const specificUser = usersData.find((u) => u.id === "W3CVKZc4NkG7bR2y03tE");
+          const specificUser = usersData.find((u) => u.id === "pvX4B8sGWoprOChWVQgQ");
           callerUser = specificUser ?? availableUsers[Math.floor(Math.random() * availableUsers.length)];
-          localStorage.setItem("hasSeenIncomingCallv1", "true");
+          localStorage.setItem("hasSeenIncomingCallv2", "true");
         } else {
           if (availableUsers.length === 0) {
             setLoading(false);
@@ -87,7 +87,7 @@ export default function HomeScreen() {
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
-      const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+      const blockedIds = JSON.parse(localStorage.getItem("blockedUserIdsv1") || "[]");
       if (blockedIds.includes(user.id)) {
         setToast("This user appears to be busy. Try again another time");
         setTimeout(() => setToast(null), 2500);

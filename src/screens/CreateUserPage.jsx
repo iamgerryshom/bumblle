@@ -7,25 +7,46 @@
  *   3. Upload every photo to Storage using that uid in the custom metadata,
  *      reporting per-photo and overall progress the whole way.
  *
+ * Also includes an Archive view for managing existing profiles:
+ *   - Lists every user doc from Firestore.
+ *   - Lists each user's photos straight from their Storage folder
+ *     (photos were never written back to Firestore, same as the Android app).
+ *   - Lets the admin remove a single photo, or remove a profile entirely
+ *     (Firestore doc + every photo in their Storage folder).
+ *   - If the removed photo was the primary shot, the next photo (by upload
+ *     order) is promoted to primary via Storage custom metadata.
+ *
  * Visual design: a darkroom / contact-sheet theme — photos are treated like
  * negatives on a light table, numbered in upload order, with the first
- * frame marked as the primary shot. All data-fetching, Firestore field
- * mappings, and upload logic below are unchanged from the original.
+ * frame marked as the primary shot. The Archive reuses the same language
+ * (mini sprocket edges, film-strip tabs) so it reads as one system.
  *
  * Requires (in your own project):
  *   npm install firebase
  *   Tailwind CSS configured (all styling below is Tailwind + a small
- *   <style> block for inputs, buttons, and the progress ring).
+ *   <style> block for inputs, buttons, cards, and the progress ring).
  *
  * Adjust the import path below to wherever you initialize Firebase.
  */
 
-import React, { useCallback, useRef, useState } from "react";
-import { doc, collection, setDoc } from "firebase/firestore";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  doc,
+  collection,
+  setDoc,
+  getDocs,
+  deleteDoc,
+  query,
+  orderBy,
+} from "firebase/firestore";
 import {
   ref as storageRef,
   uploadBytesResumable,
   getDownloadURL,
+  listAll,
+  deleteObject,
+  getMetadata,
+  updateMetadata,
 } from "firebase/storage";
 import { db, storage } from "../firebase"; // <-- adjust path to match your project structure
 
@@ -88,6 +109,66 @@ function uploadOnePhoto({ file, index, folder, userId, isPrimary, onProgress }) 
   });
 }
 
+// ---------- Firestore: list every user ----------
+function fetchAllUsers() {
+  return getDocs(query(collection(db, "users"), orderBy("name"))).then(
+    (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  );
+}
+
+// ---------- Storage: list every photo for one user, primary first ----------
+async function fetchUserPhotos(userId) {
+  const folderRef = storageRef(storage, `users/${userId}/photos`);
+  const listing = await listAll(folderRef);
+  const items = await Promise.all(
+    listing.items.map(async (itemRef) => {
+      const [url, meta] = await Promise.all([
+        getDownloadURL(itemRef),
+        getMetadata(itemRef),
+      ]);
+      return {
+        path: itemRef.fullPath,
+        name: itemRef.name,
+        url,
+        isPrimary: meta.customMetadata?.isPrimary === "true",
+      };
+    })
+  );
+  return items.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+// ---------- Storage: promote a photo to primary (used after the old primary is removed) ----------
+async function promotePhotoToPrimary(path) {
+  const fileRef = storageRef(storage, path);
+  const meta = await getMetadata(fileRef);
+  await updateMetadata(fileRef, {
+    customMetadata: { ...(meta.customMetadata || {}), isPrimary: "true" },
+  });
+}
+
+// ---------- Storage: remove one photo ----------
+function deleteUserPhoto(path) {
+  return deleteObject(storageRef(storage, path));
+}
+
+// ---------- Firestore + Storage: remove a user and every photo they have ----------
+async function deleteUserCompletely(userId) {
+  const folderRef = storageRef(storage, `users/${userId}/photos`);
+  const listing = await listAll(folderRef);
+  await Promise.all(listing.items.map((itemRef) => deleteObject(itemRef)));
+  await deleteDoc(doc(db, "users", userId));
+}
+
+function genderLabel(code) {
+  if (code === "F") return "Female";
+  if (code === "M") return "Male";
+  if (code === "O") return "Other";
+  return code || "—";
+}
+
 // ---------- Tiny inline icons (no external icon package required) ----------
 
 const IconCheck = () => (
@@ -124,6 +205,39 @@ const IconCamera = () => (
 const IconChevron = () => (
   <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
     <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconTrash = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <path d="M3 4.5h10M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5M6 7.3v4.4M10 7.3v4.4M4.2 4.5l.6 8a1 1 0 001 .9h4.4a1 1 0 001-.9l.6-8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const IconArchive = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+    <path d="M2 4.5h12M2.8 4.5v8a1 1 0 001 1h8.4a1 1 0 001-1v-8" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    <path d="M6.2 7.6h3.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <rect x="1.5" y="2.2" width="13" height="2.3" rx="0.6" stroke="currentColor" strokeWidth="1.3" />
+  </svg>
+);
+
+const IconPlus = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+);
+
+const IconUserGhost = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="8.3" r="3.3" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M5 19c1-3.2 3.9-5 7-5s6 1.8 7 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const IconArrowPath = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+    <path d="M13.5 8a5.5 5.5 0 10-1.6 3.9M13.5 8V4.6M13.5 8H10.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -200,6 +314,33 @@ function Thumb({ src, frameNumber, isPrimary, progress, status, onRemove, onMake
   );
 }
 
+function ManagedPhotoThumb({ photo, deleting, onDelete }) {
+  return (
+    <div className="thumb-frame">
+      <div className="thumb-img-wrap">
+        <img src={photo.url} alt="" className="thumb-img is-done" />
+        {deleting && (
+          <div className="thumb-deleting-overlay">
+            <span className="spinner" />
+          </div>
+        )}
+      </div>
+
+      {photo.isPrimary && (
+        <span className="badge-primary">
+          <IconStar /> Primary
+        </span>
+      )}
+
+      {!deleting && (
+        <button type="button" onClick={onDelete} className="thumb-remove-btn" title="Remove photo">
+          <IconCross />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, htmlFor, children }) {
   return (
     <label htmlFor={htmlFor} className="block">
@@ -209,9 +350,272 @@ function Field({ label, htmlFor, children }) {
   );
 }
 
+// ---------- Archive: one profile card ----------
+
+function ProfileCard({ user, onRemoved, delayMs = 0 }) {
+  const [photos, setPhotos] = useState([]);
+  const [photoStatus, setPhotoStatus] = useState("loading"); // loading | ready | error
+  const [expanded, setExpanded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(false);
+  const [deletingPhotoPath, setDeletingPhotoPath] = useState(null);
+  const [cardError, setCardError] = useState("");
+  const confirmTimer = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPhotoStatus("loading");
+    fetchUserPhotos(user.id)
+      .then((items) => {
+        if (!cancelled) {
+          setPhotos(items);
+          setPhotoStatus("ready");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPhotoStatus("error");
+      });
+    return () => {
+      cancelled = true;
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    };
+  }, [user.id]);
+
+  const primary = photos.find((p) => p.isPrimary) || photos[0];
+
+  const handleDeleteUserClick = () => {
+    if (deletingUser) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
+      return;
+    }
+    clearTimeout(confirmTimer.current);
+    setDeletingUser(true);
+    setCardError("");
+    deleteUserCompletely(user.id)
+      .then(() => onRemoved(user.id))
+      .catch((err) => {
+        setDeletingUser(false);
+        setConfirmDelete(false);
+        setCardError(err.message || "Could not remove this profile.");
+      });
+  };
+
+  const handleDeletePhoto = async (photo) => {
+    setDeletingPhotoPath(photo.path);
+    setCardError("");
+    try {
+      await deleteUserPhoto(photo.path);
+      let remaining = photos.filter((p) => p.path !== photo.path);
+      if (photo.isPrimary && remaining.length > 0) {
+        await promotePhotoToPrimary(remaining[0].path);
+        remaining = remaining.map((p, i) => (i === 0 ? { ...p, isPrimary: true } : p));
+      }
+      setPhotos(remaining);
+    } catch (err) {
+      setCardError(err.message || "Could not remove that photo.");
+    } finally {
+      setDeletingPhotoPath(null);
+    }
+  };
+
+  return (
+    <div className="profile-card fade-up" style={{ animationDelay: `${delayMs}ms` }}>
+      <div className="sprocket sprocket-top sprocket-mini" aria-hidden="true" />
+
+      <div className="profile-header">
+        <div className="profile-avatar">
+          {photoStatus === "loading" ? (
+            <span className="avatar-pulse" />
+          ) : primary ? (
+            <img src={primary.url} alt="" />
+          ) : (
+            <span className="avatar-placeholder"><IconUserGhost /></span>
+          )}
+        </div>
+
+        <div className="profile-meta">
+          <div className="profile-name">{user.name || "Untitled"}</div>
+          <div className="profile-sub">
+            {user.age || "—"} · {genderLabel(user.gender)} · {user.countryNameCode || "—"}
+          </div>
+          <div className="profile-uid" title={user.id}>uid {user.id}</div>
+        </div>
+      </div>
+
+      <div className="profile-footer">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="btn-ghost"
+          disabled={photoStatus === "loading"}
+        >
+          <span className={`chevron-icon ${expanded ? "is-open" : ""}`}><IconChevron /></span>
+          {photoStatus === "ready" ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : "Photos"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDeleteUserClick}
+          disabled={deletingUser}
+          className={`btn-danger ${confirmDelete ? "is-confirming" : ""}`}
+        >
+          <IconTrash />
+          {deletingUser ? "Removing…" : confirmDelete ? "Confirm remove" : "Remove profile"}
+        </button>
+      </div>
+
+      {cardError && <p className="card-error">{cardError}</p>}
+
+      {expanded && (
+        <div className="profile-photos">
+          {photoStatus === "loading" && <p className="empty-hint">Loading photos…</p>}
+          {photoStatus === "error" && <p className="empty-hint">Couldn't load photos.</p>}
+          {photoStatus === "ready" && photos.length === 0 && (
+            <p className="empty-hint">No photos on file.</p>
+          )}
+          {photoStatus === "ready" && photos.length > 0 && (
+            <div className="thumb-grid">
+              {photos.map((photo) => (
+                <ManagedPhotoThumb
+                  key={photo.path}
+                  photo={photo}
+                  deleting={deletingPhotoPath === photo.path}
+                  onDelete={() => handleDeletePhoto(photo)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Archive: the full list ----------
+
+function ArchivePanel({ onSwitchToCreate }) {
+  const [users, setUsers] = useState([]);
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [errorMessage, setErrorMessage] = useState("");
+  const [search, setSearch] = useState("");
+
+  const load = useCallback(() => {
+    setStatus("loading");
+    setErrorMessage("");
+    fetchAllUsers()
+      .then((list) => {
+        setUsers(list);
+        setStatus("ready");
+      })
+      .catch((err) => {
+        setErrorMessage(err.message || "Could not load the archive.");
+        setStatus("error");
+      });
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleUserRemoved = (userId) => {
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+  };
+
+  const q = search.trim().toLowerCase();
+  const filteredUsers = q
+    ? users.filter(
+        (u) =>
+          (u.name || "").toLowerCase().includes(q) ||
+          (u.countryNameCode || "").toLowerCase().includes(q) ||
+          u.id.toLowerCase().includes(q)
+      )
+    : users;
+
+  return (
+    <div className="space-y-4">
+      <div className="archive-toolbar fade-up">
+        <div className="archive-search-wrap">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, country, or uid…"
+            className="input archive-search"
+            disabled={status !== "ready"}
+          />
+        </div>
+        <div className="archive-toolbar-right">
+          <span className="archive-count">
+            {status === "ready"
+              ? q
+                ? `${filteredUsers.length} of ${users.length}`
+                : `${users.length} ${users.length === 1 ? "profile" : "profiles"}`
+              : "\u00A0"}
+          </span>
+          <button type="button" onClick={load} className="btn-ghost" disabled={status === "loading"}>
+            <IconArrowPath /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {status === "loading" && (
+        <div className="archive-grid">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="skeleton-card" style={{ animationDelay: `${i * 90}ms` }} />
+          ))}
+        </div>
+      )}
+
+      {status === "error" && (
+        <div className="empty-state fade-up">
+          <span className="empty-icon"><IconWarning /></span>
+          <p className="empty-title">{errorMessage}</p>
+          <button type="button" onClick={load} className="btn-secondary">Try again</button>
+        </div>
+      )}
+
+      {status === "ready" && users.length === 0 && (
+        <div className="empty-state fade-up">
+          <span className="empty-icon"><IconArchive /></span>
+          <p className="empty-title">The archive is empty</p>
+          <p className="empty-hint">Create a profile and it'll show up here.</p>
+          <button type="button" onClick={onSwitchToCreate} className="btn-secondary">
+            <IconPlus /> New entry
+          </button>
+        </div>
+      )}
+
+      {status === "ready" && users.length > 0 && filteredUsers.length === 0 && (
+        <div className="empty-state fade-up">
+          <p className="empty-title">No matches for "{search}"</p>
+          <button type="button" onClick={() => setSearch("")} className="btn-secondary">
+            Clear search
+          </button>
+        </div>
+      )}
+
+      {status === "ready" && filteredUsers.length > 0 && (
+        <div className="archive-grid">
+          {filteredUsers.map((user, i) => (
+            <ProfileCard
+              key={user.id}
+              user={user}
+              onRemoved={handleUserRemoved}
+              delayMs={Math.min(i, 6) * 60}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------- Main page ----------
 
 export default function CreateUserPage() {
+  const [tab, setTab] = useState("create"); // create | archive
   const [form, setForm] = useState({
     name: "",
     age: "",
@@ -360,189 +764,217 @@ export default function CreateUserPage() {
 
       <div className="max-w-5xl mx-auto px-5 sm:px-8 py-14 sm:py-20 relative">
         {/* Hero */}
-        <div className="mb-10 sm:mb-14 fade-up">
-          <span className="eyebrow">Profile · New entry</span>
+        <div className="mb-8 sm:mb-10 fade-up">
+          <span className="eyebrow">
+            {tab === "create" ? "Profile · New entry" : "Profile · Archive"}
+          </span>
           <h1 className="font-display text-4xl sm:text-5xl leading-[1.05] text-[--paper] mt-3">
-            Create a new profile
+            {tab === "create" ? "Create a new profile" : "Profile archive"}
           </h1>
           <p className="subtitle mt-3 max-w-md">
-            Add their details and a few photos — we'll create the profile,
-            then upload each image to storage.
+            {tab === "create"
+              ? "Add their details and a few photos — we'll create the profile, then upload each image to storage."
+              : "Browse every saved profile, review their photos, and remove what shouldn't be there."}
           </p>
+
+          <div className="tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "create"}
+              onClick={() => setTab("create")}
+              className={`tab-btn ${tab === "create" ? "is-active" : ""}`}
+            >
+              <IconPlus /> New entry
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "archive"}
+              onClick={() => setTab("archive")}
+              className={`tab-btn ${tab === "archive" ? "is-active" : ""}`}
+            >
+              <IconArchive /> Archive
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5">
-            {/* Details */}
-            <div className="card fade-up" style={{ animationDelay: "70ms" }}>
-              <div className="card-label">Identity</div>
+        {tab === "create" ? (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-5">
+              {/* Details */}
+              <div className="card fade-up" style={{ animationDelay: "70ms" }}>
+                <div className="card-label">Identity</div>
 
-              <div className="space-y-5 mt-4">
-                <Field label="Name" htmlFor="name">
-                  <input
-                    id="name"
-                    type="text"
-                    value={form.name}
-                    onChange={updateField("name")}
-                    disabled={busy || phase === "done"}
-                    placeholder="e.g. Amara Wanjiru"
-                    className="input"
-                  />
-                </Field>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Age" htmlFor="age">
+                <div className="space-y-5 mt-4">
+                  <Field label="Name" htmlFor="name">
                     <input
-                      id="age"
-                      type="number"
-                      min="18"
-                      max="99"
-                      value={form.age}
-                      onChange={updateField("age")}
+                      id="name"
+                      type="text"
+                      value={form.name}
+                      onChange={updateField("name")}
                       disabled={busy || phase === "done"}
-                      placeholder="24"
-                      className="input input-number"
+                      placeholder="e.g. Amara Wanjiru"
+                      className="input"
                     />
                   </Field>
 
-                  <Field label="Gender" htmlFor="gender">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Age" htmlFor="age">
+                      <input
+                        id="age"
+                        type="number"
+                        min="18"
+                        max="99"
+                        value={form.age}
+                        onChange={updateField("age")}
+                        disabled={busy || phase === "done"}
+                        placeholder="24"
+                        className="input input-number"
+                      />
+                    </Field>
+
+                    <Field label="Gender" htmlFor="gender">
+                      <div className="select-wrap">
+                        <select
+                          id="gender"
+                          value={form.gender}
+                          onChange={updateField("gender")}
+                          disabled={busy || phase === "done"}
+                          className="input"
+                        >
+                          <option value="F">Female</option>
+                          <option value="M">Male</option>
+                          <option value="O">Other</option>
+                        </select>
+                        <span className="select-chevron"><IconChevron /></span>
+                      </div>
+                    </Field>
+                  </div>
+
+                  <Field label="Country" htmlFor="country">
                     <div className="select-wrap">
                       <select
-                        id="gender"
-                        value={form.gender}
-                        onChange={updateField("gender")}
+                        id="country"
+                        value={form.countryNameCode}
+                        onChange={updateField("countryNameCode")}
                         disabled={busy || phase === "done"}
                         className="input"
                       >
-                        <option value="F">Female</option>
-                        <option value="M">Male</option>
-                        <option value="O">Other</option>
+                        {COUNTRIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.label} ({c.code})
+                          </option>
+                        ))}
                       </select>
                       <span className="select-chevron"><IconChevron /></span>
                     </div>
                   </Field>
                 </div>
 
-                <Field label="Country" htmlFor="country">
-                  <div className="select-wrap">
-                    <select
-                      id="country"
-                      value={form.countryNameCode}
-                      onChange={updateField("countryNameCode")}
-                      disabled={busy || phase === "done"}
-                      className="input"
-                    >
-                      {COUNTRIES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.label} ({c.code})
-                        </option>
-                      ))}
-                    </select>
-                    <span className="select-chevron"><IconChevron /></span>
+                {createdUserId && (
+                  <div className="uid-chip">
+                    <span className="uid-dot" />
+                    uid <span className="uid-value">{createdUserId}</span>
                   </div>
-                </Field>
+                )}
               </div>
 
-              {createdUserId && (
-                <div className="uid-chip">
-                  <span className="uid-dot" />
-                  uid <span className="uid-value">{createdUserId}</span>
+              {/* Photos — contact sheet */}
+              <div className="card contact-sheet fade-up" style={{ animationDelay: "130ms" }}>
+                <div className="sprocket sprocket-top" aria-hidden="true" />
+
+                <div className="flex items-baseline justify-between">
+                  <div className="card-label">Contact sheet</div>
+                  <span className="frame-count">{photos.length}/{MAX_PHOTOS}</span>
                 </div>
-              )}
-            </div>
 
-            {/* Photos — contact sheet */}
-            <div className="card contact-sheet fade-up" style={{ animationDelay: "130ms" }}>
-              <div className="sprocket sprocket-top" aria-hidden="true" />
-
-              <div className="flex items-baseline justify-between">
-                <div className="card-label">Contact sheet</div>
-                <span className="frame-count">{photos.length}/{MAX_PHOTOS}</span>
-              </div>
-
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={onDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`dropzone mt-4 ${
-                  photos.length >= MAX_PHOTOS || busy || phase === "done"
-                    ? "opacity-50 pointer-events-none"
-                    : "cursor-pointer"
-                }`}
-              >
-                <span className="dropzone-icon"><IconCamera /></span>
-                <p className="dropzone-title">Drop photos here, or click to browse</p>
-                <p className="dropzone-hint">First photo becomes the primary shot</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  onChange={(e) => {
-                    handleFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
-
-              {photos.length > 0 && (
-                <div className="thumb-grid mt-4">
-                  {photos.map((p, i) => (
-                    <Thumb
-                      key={p.id}
-                      src={p.previewUrl}
-                      frameNumber={String(i + 1).padStart(2, "0")}
-                      isPrimary={i === 0}
-                      progress={p.progress}
-                      status={p.status}
-                      onRemove={() => removePhoto(p.id)}
-                      onMakePrimary={() => makePrimary(p.id)}
-                    />
-                  ))}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={onDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`dropzone mt-4 ${
+                    photos.length >= MAX_PHOTOS || busy || phase === "done"
+                      ? "opacity-50 pointer-events-none"
+                      : "cursor-pointer"
+                  }`}
+                >
+                  <span className="dropzone-icon"><IconCamera /></span>
+                  <p className="dropzone-title">Drop photos here, or click to browse</p>
+                  <p className="dropzone-hint">First photo becomes the primary shot</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    hidden
+                    onChange={(e) => {
+                      handleFiles(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
                 </div>
-              )}
 
-              <div className="sprocket sprocket-bottom" aria-hidden="true" />
-            </div>
-          </div>
-
-          {/* Submit bar */}
-          <div className="submit-bar fade-up" style={{ animationDelay: "180ms" }}>
-            {phase === "done" ? (
-              <>
-                <div className="done-message">
-                  <span className="done-icon"><IconCheck /></span>
-                  Profile created and photos uploaded
-                </div>
-                <button type="button" onClick={resetAll} className="btn-secondary sm:ml-auto">
-                  Add another profile
-                </button>
-              </>
-            ) : (
-              <>
-                <button type="submit" disabled={!canSubmit || busy} className="btn-primary">
-                  {phase === "creating"
-                    ? "Creating profile…"
-                    : phase === "uploading"
-                    ? `Uploading photos… ${Math.round(overallProgress)}%`
-                    : "Create profile"}
-                </button>
-
-                {busy && (
-                  <div className="progress-track">
-                    <div
-                      className="progress-fill"
-                      style={{ width: `${phase === "creating" ? 15 : overallProgress}%` }}
-                    />
+                {photos.length > 0 && (
+                  <div className="thumb-grid mt-4">
+                    {photos.map((p, i) => (
+                      <Thumb
+                        key={p.id}
+                        src={p.previewUrl}
+                        frameNumber={String(i + 1).padStart(2, "0")}
+                        isPrimary={i === 0}
+                        progress={p.progress}
+                        status={p.status}
+                        onRemove={() => removePhoto(p.id)}
+                        onMakePrimary={() => makePrimary(p.id)}
+                      />
+                    ))}
                   </div>
                 )}
 
-                {errorMessage && <span className="error-text">{errorMessage}</span>}
-              </>
-            )}
-          </div>
-        </form>
+                <div className="sprocket sprocket-bottom" aria-hidden="true" />
+              </div>
+            </div>
+
+            {/* Submit bar */}
+            <div className="submit-bar fade-up" style={{ animationDelay: "180ms" }}>
+              {phase === "done" ? (
+                <>
+                  <div className="done-message">
+                    <span className="done-icon"><IconCheck /></span>
+                    Profile created and photos uploaded
+                  </div>
+                  <button type="button" onClick={resetAll} className="btn-secondary sm:ml-auto">
+                    Add another profile
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="submit" disabled={!canSubmit || busy} className="btn-primary">
+                    {phase === "creating"
+                      ? "Creating profile…"
+                      : phase === "uploading"
+                      ? `Uploading photos… ${Math.round(overallProgress)}%`
+                      : "Create profile"}
+                  </button>
+
+                  {busy && (
+                    <div className="progress-track">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${phase === "creating" ? 15 : overallProgress}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {errorMessage && <span className="error-text">{errorMessage}</span>}
+                </>
+              )}
+            </div>
+          </form>
+        ) : (
+          <ArchivePanel onSwitchToCreate={() => setTab("create")} />
+        )}
       </div>
     </div>
   );
@@ -616,6 +1048,31 @@ body, .input, button, select { font-family: 'Inter', sans-serif; }
   line-height: 1.55;
 }
 
+/* Tabs */
+.tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  margin-top: 22px;
+}
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.tab-btn:hover { color: var(--paper); }
+.tab-btn.is-active { background: var(--accent); color: #1A1206; }
+.tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .card {
   position: relative;
   background: linear-gradient(180deg, var(--surface) 0%, #141217 100%);
@@ -651,6 +1108,7 @@ body, .input, button, select { font-family: 'Inter', sans-serif; }
 }
 .sprocket-top { top: 0; }
 .sprocket-bottom { bottom: 0; }
+.sprocket-mini { height: 9px; background-size: 18px 9px; background-image: radial-gradient(circle at 9px 4.5px, var(--ink) 2.3px, transparent 2.6px); }
 
 .field-label {
   display: block;
@@ -780,6 +1238,46 @@ select.input { appearance: none; padding-right: 32px; }
 .thumb-action-btn:hover { background: var(--accent); color: var(--ink); }
 .thumb-action-danger:hover { background: var(--error); color: var(--paper); }
 
+.thumb-remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.thumb-remove-btn:hover { background: var(--error); border-color: var(--error); color: var(--paper); }
+.thumb-remove-btn:focus-visible { outline: 2px solid var(--error); outline-offset: 2px; }
+
+.thumb-deleting-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,10,12,0.55);
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(232,163,61,0.25);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: spin 1.4s linear infinite; }
+}
+
 .frame-number {
   display: block;
   margin-top: 6px;
@@ -867,10 +1365,46 @@ select.input { appearance: none; padding-right: 32px; }
   font-size: 14px;
   padding: 10px 18px;
   border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .btn-secondary:hover { border-color: var(--accent); background: rgba(232,163,61,0.06); }
 .btn-secondary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 7px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.btn-ghost:hover:not(:disabled) { color: var(--paper); background: rgba(255,255,255,0.05); }
+.btn-ghost:disabled { opacity: 0.45; }
+.btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #E68A8A;
+  padding: 7px 11px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,92,92,0.28);
+  background: rgba(255,92,92,0.06);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+.btn-danger:hover:not(:disabled) { background: rgba(255,92,92,0.14); border-color: rgba(255,92,92,0.45); }
+.btn-danger.is-confirming { background: var(--error); border-color: var(--error); color: #2A0A0A; }
+.btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-danger:focus-visible { outline: 2px solid var(--error); outline-offset: 2px; }
 
 .progress-track {
   flex: 1;
@@ -908,4 +1442,140 @@ select.input { appearance: none; padding-right: 32px; }
   align-items: center;
   justify-content: center;
 }
+
+/* Archive toolbar */
+.archive-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.archive-search-wrap { flex: 1; min-width: 200px; }
+.archive-search { font-size: 13px; padding: 8px 12px; }
+.archive-toolbar-right { display: flex; align-items: center; gap: 10px; flex: none; }
+.archive-count {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* Archive grid */
+.archive-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 720px) {
+  .archive-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Skeleton */
+.skeleton-card {
+  height: 128px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(100deg, var(--surface) 40%, var(--surface-2) 50%, var(--surface) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card { animation: none; }
+}
+
+/* Empty / error state */
+.empty-state {
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.empty-icon { color: var(--muted); margin-bottom: 6px; }
+.empty-title { font-size: 14px; color: var(--paper); }
+.empty-hint { font-size: 12.5px; color: var(--muted); }
+.empty-state .btn-secondary { margin-top: 10px; }
+
+/* Profile card */
+.profile-card {
+  position: relative;
+  background: linear-gradient(180deg, var(--surface) 0%, #141217 100%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  padding-top: 24px;
+  overflow: hidden;
+}
+
+.profile-header { display: flex; gap: 12px; align-items: flex-start; }
+.profile-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-placeholder { color: var(--muted); }
+.avatar-pulse {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(100deg, var(--surface) 40%, var(--surface-2) 50%, var(--surface) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  display: block;
+}
+
+.profile-meta { min-width: 0; }
+.profile-name {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.profile-uid {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: #5F5B56;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.chevron-icon { display: inline-flex; transition: transform 0.2s ease; }
+.chevron-icon.is-open { transform: rotate(180deg); }
+
+.card-error { margin-top: 10px; font-size: 12px; color: var(--error); }
+
+.profile-photos { margin-top: 14px; }
 `;
