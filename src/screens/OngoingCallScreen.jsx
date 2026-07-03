@@ -245,24 +245,53 @@ export default function VideoCallScreen({ visible, onEnd, remoteUser }) {
     video.onstalled = () => console.warn("[VideoCall] video stalled");
     video.onwaiting = () => console.warn("[VideoCall] video waiting for data");
 
+    // Mobile browsers (iOS Safari, Chrome on Android) often pause a video the
+    // instant it's unmuted via JS, since that's not considered part of the
+    // original user gesture. Guard against that by detecting the pause and
+    // resuming playback (falling back to muted playback if unmuted is refused).
+    let unmuteGuardActive = false;
+    video.onpause = () => {
+      if (video.ended) return; // real end — let onended handle it
+      if (unmuteGuardActive) {
+        console.warn("[VideoCall] video paused right after unmute — resuming");
+        video.play().catch((e) => {
+          console.error("[VideoCall] resume failed, falling back to muted:", e.name, e.message);
+          video.muted = true;
+          video.play().catch((e2) => console.error("[VideoCall] muted resume also failed:", e2.name, e2.message));
+        });
+      }
+    };
+
     video.load();
 
     video.play()
       .then(() => {
         console.log("[VideoCall] play() resolved — unmuting");
+        unmuteGuardActive = true;
         video.muted = false;
         video.volume = 1.0;
+        // Some mobile browsers pause synchronously rather than firing a pause
+        // event reliably — double check on the next frame.
+        requestAnimationFrame(() => {
+          if (video.paused && !video.ended) {
+            console.warn("[VideoCall] still paused after unmute — forcing resume");
+            video.play().catch((e) => console.error("[VideoCall] forced resume failed:", e.name, e.message));
+          }
+        });
       })
       .catch((e) => console.error("[VideoCall] play() rejected:", e.name, e.message));
 
     return () => {
+      unmuteGuardActive = false;
       video.onloadedmetadata = null;
       video.oncanplay = null;
       video.onended = null;
       video.onerror = null;
       video.onstalled = null;
       video.onwaiting = null;
+      video.onpause = null;
     };
+
   }, [visible, ready, remoteVideoUrl, seemlessLoop]);
 
   const toggleMute = () => {
