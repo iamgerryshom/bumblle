@@ -15,6 +15,8 @@
  *     doc AND every photo in that user's Storage folder together, as one
  *     action. There is no way to remove a single photo on its own — removal
  *     always applies to the whole profile.
+ *   - The Archive only ever loads gender = "F" profiles, filtered
+ *     server-side in the Firestore query itself.
  *
  * Visual design: a darkroom / contact-sheet theme — photos are treated like
  * negatives on a light table, numbered in upload order, with the first
@@ -38,6 +40,7 @@ import {
   deleteDoc,
   query,
   orderBy,
+  where,
 } from "firebase/firestore";
 import {
   ref as storageRef,
@@ -108,11 +111,12 @@ function uploadOnePhoto({ file, index, folder, userId, isPrimary, onProgress }) 
   });
 }
 
-// ---------- Firestore: list every user ----------
+// ---------- Firestore: list every user with gender = "F" ----------
+// Filtered server-side so we never pull down non-matching profiles.
 function fetchAllUsers() {
-  return getDocs(query(collection(db, "users"), orderBy("name"))).then(
-    (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-  );
+  return getDocs(
+    query(collection(db, "users"), where("gender", "==", "F"), orderBy("name"))
+  ).then((snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() })));
 }
 
 // ---------- Storage: list every photo for one user, primary first ----------
@@ -505,6 +509,7 @@ function ArchivePanel({ onSwitchToCreate }) {
             disabled={status !== "ready"}
           />
         </div>
+
         <div className="archive-toolbar-right">
           <span className="archive-count">
             {status === "ready"
