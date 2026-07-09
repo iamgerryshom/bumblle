@@ -52,7 +52,7 @@ export default function HomeScreen() {
       if (shuffled.length > 0) {
         const storedValue = localStorage.getItem("hasSeenIncomingCallv3");
         const isFirstTime = storedValue !== "true";
-        const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+        const blockedIds = JSON.parse(localStorage.getItem("blockedUserIdsv2") || "[]");
         const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
 
         let callerUser;
