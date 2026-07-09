@@ -52,7 +52,7 @@ export default function HomeScreen() {
       if (shuffled.length > 0) {
         const storedValue = localStorage.getItem("hasSeenIncomingCallv3");
         const isFirstTime = storedValue !== "true";
-        const blockedIds = JSON.parse(localStorage.getItem("blockedUserIdsv2") || "[]");
+        const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
         const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
 
         let callerUser;
@@ -87,8 +87,8 @@ export default function HomeScreen() {
       const userId = auth.currentUser?.uid;
       if (!userId) return;
 
-      const blockedIds = JSON.parse(localStorage.getItem("blockedUserIdsv2") || "[]");
-      if (blockedIds.includes(user.uid)) {
+      const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
+      if (blockedIds.includes(user.id)) {
         setToast("This user appears to be busy. Try again another time");
         setTimeout(() => setToast(null), 2500);
         return;
