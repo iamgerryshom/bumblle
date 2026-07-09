@@ -88,7 +88,7 @@ export default function HomeScreen() {
       if (!userId) return;
 
       const blockedIds = JSON.parse(localStorage.getItem("blockedUserIdsv2") || "[]");
-      if (blockedIds.includes(user.id)) {
+      if (blockedIds.includes(user.uid)) {
         setToast("This user appears to be busy. Try again another time");
         setTimeout(() => setToast(null), 2500);
         return;
