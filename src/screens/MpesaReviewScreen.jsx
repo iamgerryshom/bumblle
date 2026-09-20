@@ -6,8 +6,6 @@ import backIcon from "../assets/icons/back-vector.svg";
 import axios from "axios";
 import { getAuth } from "firebase/auth";
 
-
-
 export default function PaymentConfirmationScreen() {
   const navigate = useNavigate();
   const location = useLocation();
