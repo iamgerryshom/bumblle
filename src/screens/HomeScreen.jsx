@@ -58,7 +58,7 @@ export default function HomeScreen() {
         let callerUser;
 
         if (isFirstTime) {
-          const specificUser = usersData.find((u) => u.id === "pvX4B8sGWoprOChWVQgQ");
+          const specificUser = usersData.find((u) => u.id === "EfF9DPw4YkEgs83bxymi");
           callerUser = specificUser ?? availableUsers[Math.floor(Math.random() * availableUsers.length)];
           localStorage.setItem("hasSeenIncomingCallv3", "true");
         } else {
