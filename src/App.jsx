@@ -23,7 +23,7 @@ import AnalyticsTracker from "./components/AnalyticsTracker"; // 👈 ADD THIS
 
 
 export default function App() {
-  const MAINTENANCE_MODE = false;
+  const MAINTENANCE_MODE = true;
 
   return (
     <BrowserRouter>
