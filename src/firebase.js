@@ -5,13 +5,13 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBiCrYphgx7IOFmllYYIdKJkCNT-zLG41w",
-  authDomain: "main-website-df4e3.firebaseapp.com",
-  projectId: "main-website-df4e3",
-  storageBucket: "main-website-df4e3.firebasestorage.app",
-  messagingSenderId: "1086355376159",
-  appId: "1:1086355376159:web:8969e5d93eeb1e4262ed2a",
-  measurementId: "G-VY4Q1SS3TP"
+  apiKey: "AIzaSyCf2TdkDpeGOHOmz2l1R_XPXfdNO4WQgBI",
+  authDomain: "main-website-cd2ae.firebaseapp.com",
+  projectId: "main-website-cd2ae",
+  storageBucket: "main-website-cd2ae.firebasestorage.app",
+  messagingSenderId: "1034993565717",
+  appId: "1:1034993565717:web:31214317c12328e92e8e1c",
+  measurementId: "G-XSFMWWB1F9"
 };
 
 // Init Firebase
