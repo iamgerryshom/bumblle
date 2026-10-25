@@ -50,7 +50,7 @@ export default function HomeScreen() {
       setUsers(shuffled);
 
       if (shuffled.length > 0) {
-        const storedValue = localStorage.getItem("hasSeenIncomingCallv3");
+        const storedValue = localStorage.getItem("hasSeenIncomingCallv4");
         const isFirstTime = storedValue !== "true";
         const blockedIds = JSON.parse(localStorage.getItem("blockedUserIds") || "[]");
         const availableUsers = shuffled.filter((u) => !blockedIds.includes(u.id));
@@ -60,7 +60,7 @@ export default function HomeScreen() {
         if (isFirstTime) {
           const specificUser = usersData.find((u) => u.id === "EfF9DPw4YkEgs83bxymi");
           callerUser = specificUser ?? availableUsers[Math.floor(Math.random() * availableUsers.length)];
-          localStorage.setItem("hasSeenIncomingCallv3", "true");
+          localStorage.setItem("hasSeenIncomingCallv4", "true");
         } else {
           if (availableUsers.length === 0) {
             setLoading(false);
