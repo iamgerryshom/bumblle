@@ -264,6 +264,7 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
         contentType: file.type,
         size: file.size,
         duration: duration ?? null,
+        createdAt: serverTimestamp(),
         timeCreated: serverTimestamp(),
         seemlessLoop: false,
       });
