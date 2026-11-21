@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import {
   collection, getDocs, orderBy, query, where,
   doc, updateDoc, deleteDoc, addDoc, serverTimestamp
@@ -26,6 +26,71 @@ const extractFileName = (url, fallback) => {
   } catch { }
   return fallback || "Untitled";
 };
+
+// ── Video tags ────────────────────────────────────────────────────────────────
+// Every video gets a memorable name + colour (e.g. "Swift Otter"), worked out from
+// its Firestore id — nothing is stored. The same tag is shown on the video card and
+// next to every user assigned to it, so you can see at a glance what links to what.
+const TAG_ADJ = [
+  "Amber", "Azure", "Bold", "Brisk", "Calm", "Cobalt", "Coral", "Crimson", "Dusky", "Electric",
+  "Golden", "Ivory", "Jade", "Lunar", "Misty", "Neon", "Onyx", "Polar", "Rapid", "Ruby",
+  "Silver", "Solar", "Swift", "Velvet", "Wild", "Frosty", "Hidden", "Lucky", "Noble", "Quiet",
+  "Rusty", "Scarlet", "Shadow", "Sunny", "Stormy", "Sly", "Tiny", "Vivid", "Wise", "Royal",
+];
+const TAG_NOUN = [
+  "Falcon", "Fox", "Otter", "Lynx", "Raven", "Tiger", "Wolf", "Panda", "Heron", "Cobra",
+  "Bison", "Koala", "Gecko", "Orca", "Puma", "Hawk", "Moose", "Viper", "Zebra", "Crane",
+  "Badger", "Eagle", "Shark", "Owl", "Seal", "Jaguar", "Lion", "Mantis", "Panther", "Rhino",
+  "Sparrow", "Stag", "Swan", "Toucan", "Walrus", "Yak", "Dingo", "Ferret", "Ibis", "Lemur",
+];
+
+function hashId(id) {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) { h ^= id.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// Tags for a list of video ids, guaranteed unique within the list.
+function buildVideoTags(ids) {
+  const total = TAG_ADJ.length * TAG_NOUN.length;
+  const used = new Set();
+  const tags = new Map();
+  for (const id of [...ids].sort()) {
+    const h = hashId(id);
+    let n = h % total;
+    while (used.has(n) && used.size < total) n = (n + 1) % total;
+    used.add(n);
+    tags.set(id, {
+      name: `${TAG_ADJ[n % TAG_ADJ.length]} ${TAG_NOUN[Math.floor(n / TAG_ADJ.length)]}`,
+      // golden-angle spacing on the tag's slot keeps neighbouring colours far apart
+      color: `hsl(${Math.round((n * 137.508) % 360)} 85% 62%)`,
+    });
+  }
+  return tags;
+}
+
+const NO_USERS = [];
+
+function TagChip({ tag, small }) {
+  if (!tag) return <span className={`tag-chip missing${small ? " small" : ""}`}>Deleted video</span>;
+  return (
+    <span className={`tag-chip${small ? " small" : ""}`} style={{ "--tag": tag.color }}>
+      <i className="tag-dot" />{tag.name}
+    </span>
+  );
+}
+
+function Avatar({ user, color, size = 22 }) {
+  const [broken, setBroken] = useState(false);
+  const initial = (user.name || "?").trim().charAt(0).toUpperCase();
+  return (
+    <span className="avatar" style={{ width: size, height: size, borderColor: color || "#2a2a2a" }}>
+      {user.photoUrl && !broken
+        ? <img src={user.photoUrl} alt="" loading="lazy" onError={() => setBroken(true)} />
+        : <span className="avatar-initial">{initial}</span>}
+    </span>
+  );
+}
 
 // ── Loop switch ───────────────────────────────────────────────────────────────
 const LoopSwitch = memo(function LoopSwitch({ videoId, initialValue }) {
@@ -58,20 +123,10 @@ const LoopSwitch = memo(function LoopSwitch({ videoId, initialValue }) {
 });
 
 // ── Assign popup ──────────────────────────────────────────────────────────────
-const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssigned }) {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+const AssignUserPopup = memo(function AssignUserPopup({ videoId, users, loading, tags, onClose, onAssigned }) {
   const [assigning, setAssigning] = useState(null);
   const [toast, setToast] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getDocs(query(collection(db, "users"), where("gender", "==", "F")))
-      .then((snap) => { if (!cancelled) setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() }))); })
-      .catch(console.error)
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
+  const thisTag = tags.get(videoId);
 
   useEffect(() => {
     const fn = (e) => e.key === "Escape" && onClose();
@@ -85,7 +140,8 @@ const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssi
     try {
       await updateDoc(doc(db, "users", user.id), { remoteVideoId: videoId });
       setToast(`Assigned to ${user.name || "user"}`);
-      setTimeout(() => { onAssigned(user); onClose(); }, 900);
+      onAssigned(user, videoId);
+      setTimeout(onClose, 900);
     } catch (err) {
       console.error(err);
       setAssigning(null);
@@ -96,7 +152,10 @@ const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssi
     <div className="popup-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="popup" role="dialog" aria-modal="true">
         <div className="popup-header">
-          <div className="popup-title">ASSIGN <span>USER</span></div>
+          <div>
+            <div className="popup-title">ASSIGN <span>USER</span></div>
+            <div className="popup-subtitle">to <TagChip tag={thisTag} small /></div>
+          </div>
           <button className="popup-close" onClick={onClose} aria-label="Close">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -112,34 +171,34 @@ const AssignUserPopup = memo(function AssignUserPopup({ videoId, onClose, onAssi
             users.map((user) => {
               const key = user.uid || user.id;
               const isMe = assigning === key;
+              const isHere = user.remoteVideoId === videoId;
+              const currentTag = user.remoteVideoId ? tags.get(user.remoteVideoId) : null;
               return (
-                <div className="user-row" key={user.id}>
-                  <img className="user-avatar" src={user.photoUrl || ""} alt="" loading="lazy"
-                    onError={(e) => { e.target.src = ""; }} />
+                <div className={`user-row${isHere ? " is-here" : ""}`} key={user.id}>
+                  <Avatar user={user} color={currentTag?.color} size={44} />
                   <div className="user-info">
-                    <div className="user-name">
-                      {user.name || "Unknown"}
-                      {user.remoteVideoId && (
-                        <span className="assigned-tick" title="Already has a video assigned">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <circle cx="6" cy="6" r="6" fill="#c8ff00" />
-                            <path d="M3 6l2 2 4-4" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                      )}
-                    </div>
+                    <div className="user-name">{user.name || "Unknown"}</div>
                     <div className="user-tags">
                       <span className="user-tag">{user.countryNameCode || "—"}</span>
                       <span className="user-tag">·</span>
                       <span className="user-tag">Age {user.age ?? "—"}</span>
                     </div>
+                    <div className="user-current">
+                      {!user.remoteVideoId ? (
+                        <span className="user-current-none">No video</span>
+                      ) : isHere ? (
+                        <span className="user-current-here">✓ This video</span>
+                      ) : (
+                        <>Now: <TagChip tag={currentTag} small /></>
+                      )}
+                    </div>
                   </div>
                   <button
-                    className={`assign-btn${isMe ? " loading" : ""}`}
-                    disabled={!!assigning}
+                    className={`assign-btn${isMe ? " loading" : ""}${isHere ? " is-here" : ""}`}
+                    disabled={!!assigning || isHere}
                     onClick={() => handleAssign(user)}
                   >
-                    {isMe ? "Saving…" : "Assign"}
+                    {isMe ? "Saving…" : isHere ? "Assigned" : user.remoteVideoId ? "Move here" : "Assign"}
                   </button>
                 </div>
               );
@@ -362,7 +421,7 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
 });
 
 // ── Lazy video card ───────────────────────────────────────────────────────────
-const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, onDelete }) {
+const VideoCard = memo(function VideoCard({ video, tag, assignedUsers, isActive, onPlay, onAssign, onDelete }) {
   const [inView, setInView] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [deleteState, setDeleteState] = useState("idle");
@@ -415,9 +474,11 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
     }
   }, [video, onDelete]);
 
-  const title = video.r2Key
-    ? video.name || "Untitled"
-    : extractFileName(video.downloadURL, video.name);
+  // Migrated videos have no name (their files were random hashes): use the tag.
+  const title = video.name
+    || (video.r2Key ? null : extractFileName(video.downloadURL, null))
+    || tag?.name
+    || "Untitled";
   const isDeleting = deleteState === "deleting";
   const isDone = deleteState === "done";
 
@@ -425,8 +486,10 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
     <div
       ref={containerRef}
       className={`card${isActive ? " active" : ""}${isDone ? " deleting-out" : ""}${isDeleting ? " is-deleting" : ""}`}
+      style={{ "--tag": tag?.color }}
     >
       <div className="video-wrapper">
+        <div className="video-tag"><TagChip tag={tag} /></div>
         {inView ? (
           <video
             ref={videoRef}
@@ -472,6 +535,28 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
             <span className="meta-label">Uploaded</span>
             <span className="meta-value">{formatDate(video.timeCreated)}</span>
           </div>
+        </div>
+
+        <div className="assigned">
+          <span className="meta-label">Assigned to{assignedUsers.length > 0 ? ` · ${assignedUsers.length}` : ""}</span>
+          {assignedUsers.length === 0 ? (
+            <span className="assigned-none">No one yet</span>
+          ) : (
+            <div className="assigned-list">
+              {assignedUsers.slice(0, 3).map((u) => (
+                <span className="assigned-user" key={u.id} title={u.name || u.id}>
+                  <Avatar user={u} color={tag?.color} />
+                  <span className="assigned-name">{u.name || "Unknown"}</span>
+                </span>
+              ))}
+              {assignedUsers.length > 3 && (
+                <button type="button" className="assigned-more" onClick={() => onAssign(video)}
+                  title={assignedUsers.slice(3).map((u) => u.name).join(", ")}>
+                  +{assignedUsers.length - 3} more
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {deleteState === "confirm" ? (
@@ -528,6 +613,8 @@ export default function VideosPage() {
   const [activeId, setActiveId] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
   const activeVideoRef = useRef(null);
 
   const fetchVideos = useCallback(() => {
@@ -538,7 +625,36 @@ export default function VideosPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { fetchVideos(); }, [fetchVideos]);
+  // The users videos can be assigned to (same list the Assign popup shows).
+  const fetchUsers = useCallback(() => {
+    setUsersLoading(true);
+    getDocs(query(collection(db, "users"), where("gender", "==", "F")))
+      .then((snap) => setUsers(
+        snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+      ))
+      .catch(console.error)
+      .finally(() => setUsersLoading(false));
+  }, []);
+
+  useEffect(() => { fetchVideos(); fetchUsers(); }, [fetchVideos, fetchUsers]);
+
+  const tags = useMemo(() => buildVideoTags(videos.map((v) => v.id)), [videos]);
+
+  const usersByVideo = useMemo(() => {
+    const map = new Map();
+    for (const u of users) {
+      if (!u.remoteVideoId) continue;
+      if (!map.has(u.remoteVideoId)) map.set(u.remoteVideoId, []);
+      map.get(u.remoteVideoId).push(u);
+    }
+    return map;
+  }, [users]);
+
+  const handleAssigned = useCallback((user, videoId) => {
+    setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, remoteVideoId: videoId } : u)));
+  }, []);
 
   const handlePlay = useCallback((id, ref) => {
     if (activeVideoRef.current && activeVideoRef.current !== ref?.current) {
@@ -560,7 +676,7 @@ export default function VideosPage() {
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #0a0a0a; color: #e8e4de; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
 
-        .page { max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; }
+        .page { width: 100%; max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; text-align: left; }
         .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 56px; border-bottom: 1px solid #222; padding-bottom: 28px; }
         .header-left h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(52px, 8vw, 88px); line-height: 0.9; letter-spacing: 2px; color: #fff; }
         .header-left h1 span { color: #c8ff00; }
@@ -703,6 +819,36 @@ export default function VideosPage() {
         .upload-final-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 20px; background: #c8ff00; border: none; color: #000; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 600; border-radius: 2px; transition: background 0.15s; width: 100%; }
         .upload-final-btn:hover { background: #d8ff33; }
         .upload-size-hint { font-weight: 400; opacity: 0.7; font-size: 11px; }
+
+        /* Video tags + assignments */
+        .card { border-top: 3px solid var(--tag, #1a1a1a); }
+        .video-tag { position: absolute; top: 10px; left: 10px; z-index: 2; pointer-events: none; }
+        .video-tag .tag-chip { background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); }
+        .tag-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 7px; border: 1px solid var(--tag, #333); border-radius: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0.3px; color: #fff; white-space: nowrap; background: #111; }
+        .tag-chip.small { padding: 2px 7px 2px 5px; font-size: 10px; gap: 5px; }
+        .tag-chip.missing { border-color: #ff444466; color: #ff6666; }
+        .tag-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tag, #555); box-shadow: 0 0 6px var(--tag, transparent); flex-shrink: 0; }
+        .tag-chip.small .tag-dot { width: 6px; height: 6px; }
+
+        .avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid #2a2a2a; background: #1a1a1a; overflow: hidden; flex-shrink: 0; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .avatar-initial { font-size: 10px; font-weight: 500; color: #888; }
+        .user-row .avatar .avatar-initial { font-size: 16px; }
+
+        .assigned { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+        .assigned-none { font-size: 12px; color: #3a3a3a; font-weight: 300; }
+        .assigned-list { display: flex; flex-direction: column; gap: 6px; }
+        .assigned-user { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .assigned-name { font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .assigned-more { align-self: flex-start; background: none; border: none; padding: 0; font-size: 11px; color: #777; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+        .assigned-more:hover { color: #c8ff00; }
+
+        .popup-subtitle { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        .user-row.is-here { background: rgba(200,255,0,0.04); border-color: rgba(200,255,0,0.18); }
+        .user-current { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+        .user-current-none { color: #3a3a3a; }
+        .user-current-here { color: #c8ff00; font-weight: 500; }
+        .assign-btn.is-here { border-color: rgba(200,255,0,0.3); color: #c8ff00; opacity: 1; }
       `}</style>
 
       <div className="page">
@@ -735,6 +881,8 @@ export default function VideosPage() {
               <VideoCard
                 key={video.id}
                 video={video}
+                tag={tags.get(video.id)}
+                assignedUsers={usersByVideo.get(video.id) || NO_USERS}
                 isActive={activeId === video.id}
                 onPlay={handlePlay}
                 onAssign={setAssignTarget}
@@ -750,8 +898,11 @@ export default function VideosPage() {
       {assignTarget && (
         <AssignUserPopup
           videoId={assignTarget.id}
+          users={users}
+          loading={usersLoading}
+          tags={tags}
           onClose={() => setAssignTarget(null)}
-          onAssigned={() => { }}
+          onAssigned={handleAssigned}
         />
       )}
 

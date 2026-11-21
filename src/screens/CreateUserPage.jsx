@@ -890,7 +890,7 @@ const css = `
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: #0a0a0a; color: #e8e4de; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
 
-.cu-page { max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; font-family: 'DM Sans', sans-serif; color: #e8e4de; text-align: left; }
+.cu-page { width: 100%; max-width: 1100px; margin: 0 auto; padding: 60px 24px 80px; font-family: 'DM Sans', sans-serif; color: #e8e4de; text-align: left; }
 .cu-page button, .cu-page input, .cu-page select { font-family: 'DM Sans', sans-serif; }
 
 /* Header */
