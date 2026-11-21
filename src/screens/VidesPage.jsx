@@ -1,10 +1,44 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   collection, getDocs, orderBy, query, where,
-  doc, updateDoc, deleteDoc
+  doc, updateDoc, deleteDoc, addDoc, serverTimestamp
 } from "firebase/firestore";
-import { ref, deleteObject, uploadBytesResumable } from "firebase/storage";
+import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "../firebase";
+
+// ── R2 media API (the Cloudflare Worker) ──────────────────────────────────────
+// Set VITE_MEDIA_API_URL in your .env, e.g. https://media-api.<your-subdomain>.workers.dev
+const MEDIA_API = import.meta.env.VITE_MEDIA_API_URL;
+
+async function callMediaApi(path, body) {
+  const res = await fetch(`${MEDIA_API}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+// PUT the file to the presigned R2 URL, reporting progress 0–100.
+function putToR2(url, file, contentType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType); // must match what the Worker signed
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`R2 upload failed (${xhr.status})`));
+    xhr.onerror = () => reject(new Error("Network error during upload (check the bucket CORS policy)."));
+    xhr.onabort = () => reject(new Error("Upload cancelled."));
+    xhr.send(file);
+  });
+}
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const formatDuration = (s) => {
@@ -156,7 +190,7 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadDone, setUploadDone] = useState(false);
+  const [phase, setPhase] = useState("idle"); // idle | preparing | uploading | saving | done
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef(null);
@@ -166,6 +200,14 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
   }, [onClose, uploading]);
+
+  // Warn before closing the tab mid-upload.
+  useEffect(() => {
+    if (!uploading) return;
+    const fn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", fn);
+    return () => window.removeEventListener("beforeunload", fn);
+  }, [uploading]);
 
   const handleFileSelect = useCallback((f) => {
     if (!f || !f.type.startsWith("video/")) {
@@ -185,52 +227,65 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
   const handleUpload = useCallback(async () => {
     if (!file) return;
     setUploading(true);
+    setUploadProgress(0);
+    setPhase("preparing");
     setError(null);
 
     try {
-      // 1️⃣ Read duration from the video file
+      // 1. Read duration from the video file
       const duration = await new Promise((resolve) => {
         const video = document.createElement("video");
         video.preload = "metadata";
         video.onloadedmetadata = () => {
           URL.revokeObjectURL(video.src);
-          resolve(video.duration);
+          resolve(Number.isFinite(video.duration) ? video.duration : null);
         };
         video.onerror = () => resolve(null);
         video.src = URL.createObjectURL(file);
       });
 
-      const filename = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
-      const storageRef = ref(storage, `videos/${filename}`);
-
-      const uploadTask = uploadBytesResumable(storageRef, file, {
+      // 2. Ask the Worker for a presigned R2 upload URL
+      const { uploadUrl, key, publicUrl } = await callMediaApi("/upload-url", {
+        fileName: file.name,
         contentType: file.type,
-        customMetadata: {
-          duration: duration ? String(duration) : "",  // 2️⃣ Pass as metadata
-        },
+        size: file.size,
       });
 
-      uploadTask.on(
-        "state_changed",
-        (snap) => {
-          setUploadProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
-        },
-        (err) => {
-          console.error(err);
-          setError("Upload failed. Please try again.");
-          setUploading(false);
-        },
-        () => {
-          setUploadDone(true);
-          setTimeout(() => { onUploaded(); onClose(); }, 1200);
-        }
-      );
+      // 3. Upload straight to R2 with progress
+      setPhase("uploading");
+      await putToR2(uploadUrl, file, file.type, setUploadProgress);
+
+      // 4. Upload finished — create the Firestore doc
+      setPhase("saving");
+      await addDoc(collection(db, "videos"), {
+        name: file.name.replace(/\.[^.]+$/, ""),
+        r2Key: key,
+        downloadURL: publicUrl,
+        contentType: file.type,
+        size: file.size,
+        duration: duration ?? null,
+        timeCreated: serverTimestamp(),
+        seemlessLoop: false,
+      });
+
+      setPhase("done");
+      setTimeout(() => { onUploaded(); onClose(); }, 1200);
     } catch (err) {
       console.error(err);
-      setError("Upload failed.");
+      setError(err.message || "Upload failed. Please try again.");
       setUploading(false);
+      setPhase("idle");
     }
   }, [file, onUploaded, onClose]);
+
+  const uploadDone = phase === "done";
+  const progressLabel = {
+    preparing: "Preparing…",
+    uploading: "Uploading…",
+    saving: "Saving…",
+    done: "Upload complete!",
+  }[phase] || "";
+
   return (
     <div className="popup-overlay" onClick={(e) => !uploading && e.target === e.currentTarget && onClose()}>
       <div className="popup upload-popup" role="dialog" aria-modal="true">
@@ -295,9 +350,7 @@ const UploadPopup = memo(function UploadPopup({ onClose, onUploaded }) {
               {uploading && (
                 <div className="upload-progress-section">
                   <div className="progress-label-row">
-                    <span className="progress-label">
-                      {uploadDone ? "Upload complete!" : "Uploading…"}
-                    </span>
+                    <span className="progress-label">{progressLabel}</span>
                     <span className="progress-pct">{uploadProgress}%</span>
                   </div>
                   <div className="progress-track">
@@ -368,7 +421,11 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
   const handleDeleteConfirm = useCallback(async () => {
     setDeleteState("deleting");
     try {
-      if (video.downloadURL) {
+      if (video.r2Key) {
+        // New videos: stored in R2, deleted through the Worker
+        await callMediaApi("/delete", { key: video.r2Key });
+      } else if (video.downloadURL) {
+        // Older videos still in Firebase Storage
         try {
           const decodedUrl = decodeURIComponent(video.downloadURL);
           const pathMatch = decodedUrl.match(/\/o\/(.+?)\?/);
@@ -387,7 +444,9 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
     }
   }, [video, onDelete]);
 
-  const title = extractFileName(video.downloadURL, video.name);
+  const title = video.r2Key
+    ? video.name || "Untitled"
+    : extractFileName(video.downloadURL, video.name);
   const isDeleting = deleteState === "deleting";
   const isDone = deleteState === "done";
 
