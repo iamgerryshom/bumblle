@@ -390,8 +390,11 @@ const VideoCard = memo(function VideoCard({ video, isActive, onPlay, onAssign, o
     setDeleteState("deleting");
     try {
       if (video.r2Key) {
-        // New videos: stored in R2, deleted through the Worker
-        await callMediaApi("/delete", { key: video.r2Key });
+        // Stored in R2, deleted through the Worker — unless another video doc
+        // shares the same file (identical videos migrated as one upload).
+        const sharing = await getDocs(query(collection(db, "videos"), where("r2Key", "==", video.r2Key)));
+        const usedElsewhere = sharing.docs.some((d) => d.id !== video.id);
+        if (!usedElsewhere) await callMediaApi("/delete", { key: video.r2Key });
       } else if (video.downloadURL) {
         // Older videos still in Firebase Storage
         try {
