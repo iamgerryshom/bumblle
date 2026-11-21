@@ -5,40 +5,7 @@ import {
 } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { db, storage } from "../firebase";
-
-// ── R2 media API (the Cloudflare Worker) ──────────────────────────────────────
-// Set VITE_MEDIA_API_URL in your .env, e.g. https://media-api.<your-subdomain>.workers.dev
-const MEDIA_API = import.meta.env.VITE_MEDIA_API_URL;
-
-async function callMediaApi(path, body) {
-  const res = await fetch(`${MEDIA_API}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-  return data;
-}
-
-// PUT the file to the presigned R2 URL, reporting progress 0–100.
-function putToR2(url, file, contentType, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType); // must match what the Worker signed
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error(`R2 upload failed (${xhr.status})`));
-    xhr.onerror = () => reject(new Error("Network error during upload (check the bucket CORS policy)."));
-    xhr.onabort = () => reject(new Error("Upload cancelled."));
-    xhr.send(file);
-  });
-}
+import { callMediaApi, putToR2 } from "../lib/mediaApi";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const formatDuration = (s) => {
