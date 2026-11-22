@@ -14,12 +14,12 @@ export default function MinutesBottomSheet({ open, onClose }) {
   }, [open]);
 
   const minutesData = [
-    { id: 1, minutes: 35,  price: 100, usd: 0.78 },
-    { id: 2, minutes: 50,  price: 150, usd: 1.16 },
-    { id: 3, minutes: 70,  price: 200, usd: 1.55 },
-    { id: 4, minutes: 100, price: 250, usd: 1.94 },
-    { id: 5, minutes: 130, price: 300, usd: 2.32 },
-    { id: 6, minutes: 160, price: 350, usd: 2.71 },
+    { id: 1, minutes: 35,  price: 199, usd: 1.54 },
+    { id: 2, minutes: 50,  price: 249, usd: 1.93 },
+    { id: 3, minutes: 70,  price: 299, usd: 2.32 },
+    { id: 4, minutes: 100, price: 349, usd: 2.71 },
+    { id: 5, minutes: 130, price: 399, usd: 3.09 },
+    { id: 6, minutes: 160, price: 449, usd: 3.48 },
   ];
 
   const handleSelect = (item) => {
